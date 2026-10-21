@@ -14,11 +14,12 @@ public static class SyncEndpoints
     {
         var sync = api.MapGroup("/sync");
 
-        sync.MapPost("/", async (ICurrentUser user, SyncService service, CancellationToken ct) =>
+        sync.MapPost("/", async (DateOnly? from, ICurrentUser user, SyncService service, IClock clock, CancellationToken ct) =>
         {
+            if (from > clock.Today) return Results.BadRequest(new { title = "The from date cannot be in the future." });
             // Fire-and-forget is wrong here: a cancelled request would abort the run halfway.
             // The service saves a Running row first, so the UI can poll /status while this awaits.
-            var run = await service.RunAsync(user.UserId, SyncTrigger.Manual, CancellationToken.None);
+            var run = await service.RunAsync(user.UserId, SyncTrigger.Manual, CancellationToken.None, from);
             return Results.Accepted("/api/sync/status", run);
         });
 

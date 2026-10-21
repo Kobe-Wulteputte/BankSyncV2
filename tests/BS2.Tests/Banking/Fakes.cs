@@ -29,6 +29,7 @@ public sealed class FakeBankingProvider : IBankingProvider
     public List<string> StartedStates { get; } = [];
     public List<string> DeletedSessions { get; } = [];
     public List<string> FetchedAccounts { get; } = [];
+    public DateOnly? FetchedFrom { get; private set; }
     public int CompleteCalls { get; private set; }
     public Exception? CompleteError { get; set; }
     public Exception? TransactionsError { get; set; }
@@ -62,6 +63,7 @@ public sealed class FakeBankingProvider : IBankingProvider
     public Task<IReadOnlyList<ProviderTransaction>> GetTransactionsAsync(string accountId, DateOnly from, CancellationToken ct)
     {
         FetchedAccounts.Add(accountId);
+        FetchedFrom = from;
         if (TransactionsError is not null) throw TransactionsError;
         return Task.FromResult<IReadOnlyList<ProviderTransaction>>(Transactions.GetValueOrDefault(accountId) ?? []);
     }

@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { useAuth0 } from '@auth0/auth0-vue'
 import Button from 'primevue/button'
+import DatePicker from 'primevue/datepicker'
+import Dialog from 'primevue/dialog'
+import SplitButton from 'primevue/splitbutton'
 import { useToast } from 'primevue/usetoast'
 import { onUnmounted, ref } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
@@ -10,6 +13,7 @@ import type { SyncRunDto } from '@/api/types'
 import { useFilterUrlSync } from '@/composables'
 import { useFilterStore } from '@/stores/filter'
 import { useLookupStore } from '@/stores/lookups'
+import { toIsoDate } from '@/utils/format'
 
 const { user, logout } = useAuth0()
 const toast = useToast()
@@ -29,6 +33,7 @@ const nav = [
 ]
 
 const syncing = ref(false)
+const dataVersion = ref(0)
 let pollTimer: ReturnType<typeof setTimeout> | undefined
 
 function describe(run: SyncRunDto): string {
@@ -47,15 +52,18 @@ async function poll() {
     if (!run) return
     const severity = run.status === 'Succeeded' ? 'success' : run.status === 'Failed' ? 'error' : 'warn'
     toast.add({ severity, summary: `Sync ${run.status}`, detail: run.error ?? describe(run), life: 8000 })
+    // A sync adds transactions and categories; remount the open page so it shows them.
+    void lookups.load(true)
+    dataVersion.value++
   } catch {
     syncing.value = false // the api client already toasted
   }
 }
 
-async function syncNow() {
+async function syncNow(from?: string) {
   syncing.value = true
   try {
-    await startSync()
+    await startSync(from)
   } catch (e) {
     if (!(e instanceof ApiError && e.status === 409)) {
       syncing.value = false
@@ -63,6 +71,17 @@ async function syncNow() {
     }
   }
   pollTimer = setTimeout(poll, 3000)
+}
+
+// For entries older than the default retrieval window; how far back works depends on the bank.
+const fromDialog = ref(false)
+const syncFrom = ref<Date | null>(null)
+const today = new Date()
+const syncMenu = [{ label: 'Sync from date…', icon: 'pi pi-calendar', command: () => (fromDialog.value = true) }]
+function syncFromDate() {
+  if (!syncFrom.value) return
+  fromDialog.value = false
+  void syncNow(toIsoDate(syncFrom.value))
 }
 
 onUnmounted(() => clearTimeout(pollTimer))
@@ -90,12 +109,20 @@ const doLogout = () => logout({ logoutParams: { returnTo: window.location.origin
       <header class="topbar flex center between gap-2">
         <span class="muted small">{{ user?.email }}</span>
         <div class="flex gap-2">
-          <Button label="Sync now" icon="pi pi-refresh" size="small" :loading="syncing" @click="syncNow" />
+          <SplitButton label="Sync now" icon="pi pi-refresh" size="small" :model="syncMenu" :disabled="syncing" @click="syncNow()" />
           <Button label="Logout" icon="pi pi-sign-out" size="small" severity="secondary" outlined @click="doLogout" />
         </div>
       </header>
+      <Dialog v-model:visible="fromDialog" modal header="Sync from date" :style="{ width: '22rem' }">
+        <p class="small muted mt-0">Fetches every bank from this date. Entries already present are skipped.</p>
+        <DatePicker v-model="syncFrom" date-format="dd/mm/yy" :max-date="today" show-icon fluid />
+        <template #footer>
+          <Button label="Cancel" severity="secondary" text @click="fromDialog = false" />
+          <Button label="Sync" icon="pi pi-refresh" :disabled="!syncFrom" @click="syncFromDate" />
+        </template>
+      </Dialog>
       <main class="content">
-        <RouterView />
+        <RouterView :key="dataVersion" />
       </main>
     </div>
   </div>

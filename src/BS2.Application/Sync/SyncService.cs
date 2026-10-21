@@ -26,7 +26,8 @@ public sealed class SyncService(
     /// <summary>A Running row older than this is a crash leftover, not a live run.</summary>
     private static readonly TimeSpan StaleRunAfter = TimeSpan.FromMinutes(30);
 
-    public async Task<SyncRunDto> RunAsync(Guid userId, SyncTrigger trigger, CancellationToken ct)
+    /// <param name="from">Fetch from this date instead of the last <see cref="SyncOptions.RetrievalDays"/> days.</param>
+    public async Task<SyncRunDto> RunAsync(Guid userId, SyncTrigger trigger, CancellationToken ct, DateOnly? from = null)
     {
         var now = clock.UtcNow;
         if (await db.SyncRuns.AnyAsync(r => r.UserId == userId && r.Status == SyncStatus.Running && r.StartedAt > now - StaleRunAfter, ct))
@@ -57,7 +58,7 @@ public sealed class SyncService(
                 ct.ThrowIfCancellationRequested();
                 try
                 {
-                    details.Add(await SyncConnectionAsync(connection, run, ct));
+                    details.Add(await SyncConnectionAsync(connection, run, from, ct));
                 }
                 catch (Exception ex) when (IsRecoverable(ex, ct))
                 {
@@ -117,7 +118,7 @@ public sealed class SyncService(
         return new SyncStatusDto(running, last is null ? null : SyncRunDto.From(last), schedule.NextRunUtc);
     }
 
-    private async Task<SyncDetailDto> SyncConnectionAsync(BankConnection connection, SyncRun run, CancellationToken ct)
+    private async Task<SyncDetailDto> SyncConnectionAsync(BankConnection connection, SyncRun run, DateOnly? fromOverride, CancellationToken ct)
     {
         var now = clock.UtcNow;
         var bank = connection.BankName;
@@ -149,7 +150,7 @@ public sealed class SyncService(
         if (accounts.Count == 0)
             return Skip(run, bank, $"The session exposes no accounts to sync. Check that {bank} is linked to your Enable Banking profile.");
 
-        var from = clock.Today.AddDays(-syncOptions.Value.RetrievalDays);
+        var from = fromOverride ?? clock.Today.AddDays(-syncOptions.Value.RetrievalDays);
         int fetched = 0, added = 0, failedAccounts = 0;
         var providerRejected = false;
 

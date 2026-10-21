@@ -54,6 +54,19 @@ public class SyncServiceTests
     }
 
     [Fact]
+    public async Task Fetches_from_the_given_date_instead_of_the_retrieval_window()
+    {
+        await using var db = TestEnv.NewDb(_encryptor);
+        var connection = TestEnv.NewConnection(_clock);
+        db.AddRange(connection, TestEnv.NewAccount(connection, "BE68539007547034", "acc-1", _encryptor, _clock));
+        await db.SaveChangesAsync();
+
+        await CreateSut(db).RunAsync(TestEnv.UserId, SyncTrigger.Manual, CancellationToken.None, new DateOnly(2025, 1, 1));
+
+        Assert.Equal(new DateOnly(2025, 1, 1), _provider.FetchedFrom);
+    }
+
+    [Fact]
     public async Task Skips_entries_the_excel_import_already_holds_for_the_same_bank()
     {
         await using var db = TestEnv.NewDb(_encryptor);
