@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: banksync-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: banksync
+      POSTGRES_USER: banksync
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-banksync}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - banksync-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U banksync -d banksync"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: banksync-api
+    restart: unless-stopped
+    profiles: ["app"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      BS2_ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=banksync;Username=banksync;Password=${POSTGRES_PASSWORD:-banksync}
+      BS2_Encryption__MasterKey: ${BS2_ENCRYPTION_MASTER_KEY}
+      BS2_Auth0__Domain: ${AUTH0_DOMAIN}
+      BS2_Auth0__Audience: ${AUTH0_AUDIENCE}
+      BS2_Auth0__AllowedEmails__0: ${AUTH0_ALLOWED_EMAIL}
+      BS2_Auth0__AdminEmails__0: ${AUTH0_ALLOWED_EMAIL}
+      BS2_Auth0__AllowedSubjects__0: ${AUTH0_ALLOWED_SUBJECT}
+      BS2_Auth0__AdminSubjects__0: ${AUTH0_ADMIN_SUBJECT}
+      BS2_App__PublicOrigin: ${PUBLIC_ORIGIN:-http://localhost:8080}
+      BS2_EnableBanking__AppKid: ${ENABLEBANKING_APP_KID}
+      BS2_EnableBanking__KeyPath: /secrets/enablebanking.pem
+      BS2_OpenAIServiceOptions__ApiKey: ${OPENAI_API_KEY}
+      BS2_Classification__Model: ${OPENAI_MODEL}
+      BS2_Sync__NotifyEmail: ${NOTIFY_EMAIL}
+      BS2_Mail__SmtpHost: ${SMTP_HOST}
+      BS2_Mail__SmtpPort: ${SMTP_PORT:-587}
+      BS2_Mail__SmtpUser: ${SMTP_USER}
+      BS2_Mail__SmtpPassword: ${SMTP_PASSWORD}
+      BS2_Mail__From: ${SMTP_FROM}
+    volumes:
+      - ./secrets:/secrets:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+
+volumes:
+  banksync-pgdata:

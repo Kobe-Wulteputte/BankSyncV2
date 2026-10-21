@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+client/node_modules/
+client/dist/
+src/BS2.Api/wwwroot/
+secrets/
+.env
+*.pem
+*.key

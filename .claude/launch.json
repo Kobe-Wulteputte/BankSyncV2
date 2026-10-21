@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "banksync-v2-api",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "src/BS2.Api"],
+      "port": 8080,
+      "url": "https://localhost:8080"
+    }
+  ]
+}
