@@ -15,29 +15,42 @@ export function useDark(): Ref<boolean> {
 /**
  * Two-way binding between the filter store and the URL query.
  * URL wins on arrival (shareable links); afterwards the store writes back and persists.
+ * Waits for the router's first navigation: before that the route is still '/', and replacing
+ * its query would cancel the navigation to the real page and drop its query (e.g. the bank
+ * callback's bankCode on /banks).
  */
 export function useFilterUrlSync(): void {
   const store = useFilterStore()
   const route = useRoute()
   const router = useRouter()
+  let ready = false
 
   const applyRoute = () => {
     if (hasFilterQuery(route.query)) store.fromUrlQuery(route.query)
   }
-  applyRoute()
+
+  const writeBack = () => {
+    store.persist()
+    const next = { ...route.query, ...store.toUrlQuery() }
+    // drop filter keys that are no longer set
+    for (const k of ['from', 'to', 'excludeCategoryIds', 'accountIds', 'excludeGroupIds', 'search']) {
+      if (!(k in store.toUrlQuery())) delete next[k]
+    }
+    if (JSON.stringify(next) !== JSON.stringify(route.query)) router.replace({ query: next })
+  }
+
+  void router.isReady().then(() => {
+    ready = true
+    applyRoute()
+    writeBack()
+  })
 
   watch(
     () => store.$state,
     () => {
-      store.persist()
-      const next = { ...route.query, ...store.toUrlQuery() }
-      // drop filter keys that are no longer set
-      for (const k of ['from', 'to', 'excludeCategoryIds', 'accountIds', 'excludeGroupIds', 'search']) {
-        if (!(k in store.toUrlQuery())) delete next[k]
-      }
-      if (JSON.stringify(next) !== JSON.stringify(route.query)) router.replace({ query: next })
+      if (ready) writeBack()
     },
-    { deep: true, immediate: true },
+    { deep: true },
   )
   watch(() => route.query, applyRoute)
 }
