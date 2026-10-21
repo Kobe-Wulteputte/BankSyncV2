@@ -40,6 +40,8 @@ services:
       BS2_App__PublicOrigin: ${PUBLIC_ORIGIN:-http://localhost:8080}
       BS2_EnableBanking__AppKid: ${ENABLEBANKING_APP_KID}
       BS2_EnableBanking__KeyPath: /secrets/enablebanking.pem
+      # Argenta requires psu-ip-address; inside Docker the auto-detected address is the container's.
+      BS2_EnableBanking__PsuIpAddress: ${PSU_IP_ADDRESS:-}
       BS2_OpenAIServiceOptions__ApiKey: ${OPENAI_API_KEY}
       BS2_Classification__Model: ${OPENAI_MODEL}
       BS2_Sync__NotifyEmail: ${NOTIFY_EMAIL}

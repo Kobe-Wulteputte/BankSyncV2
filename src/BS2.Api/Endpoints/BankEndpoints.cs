@@ -1,6 +1,7 @@
 using BS2.Application;
 using BS2.Application.Banking;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
 namespace BS2.Api.Endpoints;
@@ -49,6 +50,7 @@ public static class BankEndpoints
                 string? code,
                 string? state,
                 string? error,
+                [FromQuery(Name = "error_description")] string? errorDescription,
                 IOptions<AppOptions> app,
                 ILogger<AuthorizationFlowService> logger) =>
             {
@@ -56,12 +58,13 @@ public static class BankEndpoints
                 Dictionary<string, string?> query;
                 if (!string.IsNullOrWhiteSpace(error) || string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state))
                 {
-                    logger.LogWarning("Bank callback without a code: {Error}", error);
+                    logger.LogWarning("Bank callback without a code: {Error} {ErrorDescription}", error, errorDescription);
                     // Fixed text: the error parameter is attacker-controlled and would be shown on our origin.
                     query = new() { ["result"] = "error", ["message"] = "The bank did not complete the authorization." };
                 }
                 else
                 {
+                    logger.LogInformation("Bank callback with a code; handing it to the client to complete.");
                     // Not "code"/"state": the Auth0 SDK treats those on any SPA URL as its own login callback.
                     query = new() { ["bankCode"] = code, ["bankState"] = state };
                 }
