@@ -30,7 +30,8 @@ public static class TransactionMapper
                       + t.DebtorAccountAdditionalIdentification?.FirstOrDefault()?.Identification
                       + t.CreditorAccountAdditionalIdentification?.FirstOrDefault()?.Identification + ")";
 
-        var bookingDate = ParseDate(t.BookingDate);
+        // PayPal sends neither booking nor value date, only transaction_date.
+        var bookingDate = ParseDate(t.BookingDate) ?? ParseDate(t.TransactionDate);
         var valueDate = ParseDate(t.ValueDate);
 
         var externalId = t.EntryReference ?? t.TransactionId

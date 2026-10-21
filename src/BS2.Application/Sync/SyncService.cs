@@ -232,8 +232,11 @@ public sealed class SyncService(
     private async Task<List<Transaction>> AddNewAsync(BankConnection connection, Account account, IReadOnlyList<ProviderTransaction> rows, CancellationToken ct)
     {
         var ids = rows.Select(r => r.ExternalId).Where(id => !string.IsNullOrEmpty(id)).Distinct().ToList();
+        // Across all of this user's accounts at the same bank, not just this one: the Excel import keeps
+        // the same entries on a "(imported)" account, and a re-authorization can create a new account.
+        var bankName = connection.BankName.ToLower();
         var known = (await db.Transactions
-                .Where(t => t.AccountId == account.Id && ids.Contains(t.ExternalId))
+                .Where(t => t.UserId == connection.UserId && t.Account.BankConnection.BankName.ToLower() == bankName && ids.Contains(t.ExternalId))
                 .Select(t => t.ExternalId)
                 .ToListAsync(ct))
             .ToHashSet();

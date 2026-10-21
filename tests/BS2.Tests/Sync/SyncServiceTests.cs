@@ -54,6 +54,28 @@ public class SyncServiceTests
     }
 
     [Fact]
+    public async Task Skips_entries_the_excel_import_already_holds_for_the_same_bank()
+    {
+        await using var db = TestEnv.NewDb(_encryptor);
+        var imported = TestEnv.NewConnection(_clock, "Paypal", ConnectionStatus.Revoked, sessionId: null);
+        imported.Provider = BankProvider.Import;
+        var importedAccount = TestEnv.NewAccount(imported, "Paypal", "", _encryptor, _clock);
+        var connection = TestEnv.NewConnection(_clock, "PayPal");
+        db.AddRange(imported, importedAccount, connection, TestEnv.NewAccount(connection, "me@example.com", "acc-1", _encryptor, _clock), new Transaction
+        {
+            Id = Guid.NewGuid(), UserId = TestEnv.UserId, AccountId = importedAccount.Id, Source = TransactionSource.ExcelImport,
+            ExternalId = "t1", Amount = -1, Date = new DateOnly(2026, 9, 1), CreatedAt = _clock.UtcNow, UpdatedAt = _clock.UtcNow
+        });
+        await db.SaveChangesAsync();
+        _provider.Transactions["acc-1"] = [TestEnv.Tx("t1"), TestEnv.Tx("t2")];
+
+        var run = await CreateSut(db).RunAsync(TestEnv.UserId, SyncTrigger.Manual, CancellationToken.None);
+
+        Assert.Equal(1, run.TransactionsNew);
+        Assert.Equal(["t1", "t2"], (await db.Transactions.Select(t => t.ExternalId).ToListAsync()).Order());
+    }
+
+    [Fact]
     public async Task Skips_expired_connection_with_detail_entry()
     {
         await using var db = TestEnv.NewDb(_encryptor);
