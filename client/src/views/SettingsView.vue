@@ -15,7 +15,7 @@ import { computed, onMounted, ref } from 'vue'
 import { createCategory, updateCategory } from '@/api/categories'
 import { createCategoryClass, removeCategoryClass, updateCategoryClass } from '@/api/categoryClasses'
 import { deleteGroup } from '@/api/groups'
-import { importExcel } from '@/api/importer'
+import { importExcel, sendTestMail } from '@/api/importer'
 import { getMe } from '@/api/me'
 import type { CategoryClassDto, CategoryDto, CategoryKind, GroupDto, ImportResult } from '@/api/types'
 import GroupDialog from '@/components/GroupDialog.vue'
@@ -147,6 +147,20 @@ function removeGroup(g: GroupDto) {
 
 // Categories and classes are shared by every user, so only admins change them (the API enforces it).
 const isAdmin = ref(false)
+
+const mailing = ref(false)
+const mailResult = ref('')
+async function testMail() {
+  mailing.value = true
+  mailResult.value = ''
+  try {
+    mailResult.value = `Sent to ${(await sendTestMail()).recipient}. Check that inbox (and spam).`
+  } catch {
+    // toasted, with the SMTP error as detail
+  } finally {
+    mailing.value = false
+  }
+}
 onMounted(async () => {
   isAdmin.value = (await getMe()).isAdmin
 })
@@ -244,6 +258,14 @@ async function upload(e: FileUploadUploaderEvent) {
         </template>
       </Column>
     </DataTable>
+  </section>
+
+  <section v-if="isAdmin" class="card col gap-3 mb-3">
+    <h2 style="margin: 0; font-size: 1.1rem">Mail</h2>
+    <div class="flex center gap-3">
+      <Button label="Send test mail" icon="pi pi-envelope" size="small" outlined :loading="mailing" @click="testMail" />
+      <span v-if="mailResult" class="small pos">{{ mailResult }}</span>
+    </div>
   </section>
 
   <section v-if="isAdmin" class="card col gap-3">

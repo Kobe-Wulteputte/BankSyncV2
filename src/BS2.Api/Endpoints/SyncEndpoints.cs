@@ -1,8 +1,11 @@
 using BS2.Api.Auth;
+using BS2.Application;
 using BS2.Application.Abstractions;
 using BS2.Application.Sync;
 using BS2.Domain.Enums;
 using BS2.Infrastructure.Import;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace BS2.Api.Endpoints;
 
@@ -39,6 +42,26 @@ public static class SyncEndpoints
             })
             .RequireAuthorization(AuthSetup.AdminPolicy)
             .DisableAntiforgery();
+
+        // Sends to the address the expiry mails use, so a success here means those arrive too.
+        api.MapPost("/mail/test", async (ICurrentUser user, IAppDbContext db, IOptions<SyncOptions> options, IEmailSender mail, CancellationToken ct) =>
+            {
+                var userEmail = (await db.Users.Where(u => u.Id == user.UserId).Select(u => u.Email).FirstOrDefaultAsync(ct))?.Trim();
+                var recipient = string.IsNullOrEmpty(userEmail) ? options.Value.NotifyEmail : userEmail;
+                if (string.IsNullOrWhiteSpace(recipient))
+                    return Results.BadRequest(new { title = "No recipient: your account has no email and Sync:NotifyEmail is empty." });
+                try
+                {
+                    await mail.SendAsync(recipient, "BankSync: test mail", "<p>Mail from BankSync works.</p>", "Mail from BankSync works.", ct);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // Admin-only, and the SMTP error is the point of the test.
+                    return Results.Problem(title: "Sending failed", detail: ex.Message, statusCode: 502);
+                }
+                return Results.Ok(new { recipient });
+            })
+            .RequireAuthorization(AuthSetup.AdminPolicy);
 
         return api;
     }
