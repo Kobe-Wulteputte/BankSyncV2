@@ -48,7 +48,11 @@ const includedClassIds = computed<number[]>({
   set: (ids) => (includedCategoryIds.value = applyClassSelection(lookups.activeCategories, includedCategoryIds.value, ids)),
 })
 
-const allGroupIds = computed(() => lookups.groups.map((g) => g.id))
+// The empty GUID is a sentinel: the API reads it as "no group" in the group filter (like category 0
+// for uncategorized) and it matches no account in the account filter.
+const EMPTY_GUID = '00000000-0000-0000-0000-000000000000'
+const groupOptions = computed(() => [{ id: EMPTY_GUID, name: 'Empty group' }, ...lookups.groups])
+const allGroupIds = computed(() => groupOptions.value.map((g) => g.id))
 const includedGroupIds = computed<string[]>({
   get: () => allGroupIds.value.filter((id) => !filter.excludeGroupIds.includes(id)),
   set: (ids) => (filter.excludeGroupIds = allGroupIds.value.filter((id) => !ids.includes(id))),
@@ -57,10 +61,11 @@ const includedGroupIds = computed<string[]>({
 const accountOptions = computed(() =>
   lookups.accounts.map((a) => ({ id: a.id, label: `${a.bankName} · ${a.displayName || a.identifier}` })),
 )
-// Accounts are an include list in the API; an empty list means all, so "all checked" maps to [].
+// Accounts are an include list in the API where an empty list means all: "all checked" maps to [] and
+// "none checked" to the empty GUID, which matches no account (an empty list would read as all again).
 const includedAccountIds = computed<string[]>({
-  get: () => (filter.accountIds.length ? filter.accountIds : accountOptions.value.map((a) => a.id)),
-  set: (ids) => (filter.accountIds = ids.length === 0 || ids.length === accountOptions.value.length ? [] : ids),
+  get: () => (filter.accountIds.length ? filter.accountIds.filter((id) => id !== EMPTY_GUID) : accountOptions.value.map((a) => a.id)),
+  set: (ids) => (filter.accountIds = ids.length === accountOptions.value.length ? [] : ids.length === 0 ? [EMPTY_GUID] : ids),
 })
 
 const includeReimbursed = computed<boolean>({
@@ -97,7 +102,7 @@ const commitSearch = () => (filter.search = search.value)
       placeholder="Accounts" filter :max-selected-labels="1"
       :selected-items-label="countLabel(includedAccountIds.length, accountOptions.length, 'accounts')"
       size="small" style="width: 13rem" />
-    <MultiSelect v-model="includedGroupIds" :options="lookups.groups" option-label="name" option-value="id"
+    <MultiSelect v-model="includedGroupIds" :options="groupOptions" option-label="name" option-value="id"
       placeholder="Groups" filter :max-selected-labels="1"
       :selected-items-label="countLabel(includedGroupIds.length, allGroupIds.length, 'groups')"
       size="small" style="width: 12rem" />
