@@ -9,6 +9,7 @@ import Select from 'primevue/select'
 import { computed, ref, watch } from 'vue'
 import { useFilterStore } from '@/stores/filter'
 import { useLookupStore } from '@/stores/lookups'
+import { applyClassSelection, selectedClasses, UNCLASSED } from '@/utils/classFilter'
 import { PRESET_OPTIONS } from '@/utils/dateRange'
 import { parseDate, toIsoDate } from '@/utils/format'
 
@@ -32,6 +33,19 @@ const allCategoryIds = computed(() => lookups.activeCategories.map((c) => c.id))
 const includedCategoryIds = computed<number[]>({
   get: () => allCategoryIds.value.filter((id) => !filter.excludeCategoryIds.includes(id)),
   set: (ids) => (filter.excludeCategoryIds = allCategoryIds.value.filter((id) => !ids.includes(id))),
+})
+
+// Shortcut over the category filter, so the API and saved URLs need nothing new.
+const classOptions = computed(() => {
+  const used = new Set(lookups.activeCategories.map((c) => c.categoryClassId ?? UNCLASSED))
+  return [
+    ...lookups.classes.filter((c) => used.has(c.id)).map((c) => ({ id: c.id, name: c.name })),
+    ...(used.has(UNCLASSED) ? [{ id: UNCLASSED, name: 'Unclassed' }] : []),
+  ]
+})
+const includedClassIds = computed<number[]>({
+  get: () => selectedClasses(lookups.activeCategories, includedCategoryIds.value),
+  set: (ids) => (includedCategoryIds.value = applyClassSelection(lookups.activeCategories, includedCategoryIds.value, ids)),
 })
 
 const allGroupIds = computed(() => lookups.groups.map((g) => g.id))
@@ -71,6 +85,10 @@ const commitSearch = () => (filter.search = search.value)
       <DatePicker v-model="from" date-format="dd/mm/yy" placeholder="From" show-icon size="small" style="width: 10rem" />
       <DatePicker v-model="to" date-format="dd/mm/yy" placeholder="To" show-icon size="small" style="width: 10rem" />
     </template>
+    <MultiSelect v-model="includedClassIds" :options="classOptions" option-label="name" option-value="id"
+      placeholder="Classes" :max-selected-labels="1"
+      :selected-items-label="countLabel(includedClassIds.length, classOptions.length, 'classes')"
+      size="small" style="width: 11rem" />
     <MultiSelect v-model="includedCategoryIds" :options="lookups.activeCategories" option-label="name" option-value="id"
       placeholder="Categories" filter :max-selected-labels="1"
       :selected-items-label="countLabel(includedCategoryIds.length, allCategoryIds.length, 'categories')"
