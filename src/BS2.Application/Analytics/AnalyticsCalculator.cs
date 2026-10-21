@@ -9,10 +9,10 @@ public sealed record ExpensesResult(decimal Total, int Count, ExpenseCategoryDto
 public sealed record ExpenseCategoryDto(int? CategoryId, string Code, string Name, string? Color, decimal Total, int Count, decimal Share, int? CategoryClassId, string? CategoryClassName);
 public sealed record ExpenseClassDto(int? CategoryClassId, string Name, string? Color, decimal Total, int Count, decimal Share);
 
-public sealed record IncomeResult(decimal Total, IncomeMonthDto[] Months);
-public sealed record IncomeMonthDto(string Month, decimal Total, IncomeCategoryDto[] ByCategory, IncomeClassDto[] ByClass);
-public sealed record IncomeCategoryDto(int? CategoryId, string Code, string Name, decimal Total, int? CategoryClassId);
-public sealed record IncomeClassDto(int? CategoryClassId, string Name, decimal Total);
+public sealed record MonthlyResult(decimal Total, MonthlyMonthDto[] Months);
+public sealed record MonthlyMonthDto(string Month, decimal Total, MonthlyCategoryDto[] ByCategory, MonthlyClassDto[] ByClass);
+public sealed record MonthlyCategoryDto(int? CategoryId, string Code, string Name, decimal Total, int? CategoryClassId);
+public sealed record MonthlyClassDto(int? CategoryClassId, string Name, decimal Total);
 
 public sealed record SavingsResult(decimal TotalIncome, decimal TotalExpenses, decimal TotalSavings, SavingsMonthDto[] Months);
 public sealed record SavingsMonthDto(string Month, decimal Income, decimal Expenses, decimal Savings, decimal Cumulative);
@@ -55,35 +55,43 @@ public static class AnalyticsCalculator
         return new ExpensesResult(grand, buckets.Sum(b => b.Count), result, classes);
     }
 
-    public static IncomeResult Income(IEnumerable<AnalyticsRow> rows, DateOnly? from, DateOnly? to, IEnumerable<Category> categories)
+    public static MonthlyResult Income(IEnumerable<AnalyticsRow> rows, DateOnly? from, DateOnly? to, IEnumerable<Category> categories) =>
+        Monthly(rows, from, to, categories, sign: 1);
+
+    /// <summary>Expenses per month and category, as positive amounts; same netting rule as <see cref="Expenses"/>.</summary>
+    public static MonthlyResult MonthlyExpenses(IEnumerable<AnalyticsRow> rows, DateOnly? from, DateOnly? to, IEnumerable<Category> categories) =>
+        Monthly(rows, from, to, categories, sign: -1);
+
+    /// <summary>Per month, keeps the categories whose sum has <paramref name="sign"/> and reports it as a positive total.</summary>
+    private static MonthlyResult Monthly(IEnumerable<AnalyticsRow> rows, DateOnly? from, DateOnly? to, IEnumerable<Category> categories, int sign)
     {
         var lookup = categories.ToDictionary(c => c.Id);
         var relevant = rows.Where(r => r.Kind != CategoryKind.Transfer && r.Amount != 0).ToList();
         var byMonth = relevant.ToLookup(r => MonthKey(r.Date));
 
-        var months = Months(relevant.Where(r => r.Amount > 0).ToList(), from, to).Select(m =>
+        var months = Months(relevant.Where(r => Math.Sign(r.Amount) == sign).ToList(), from, to).Select(m =>
         {
             var byCategory = NetByCategory(byMonth[m])
-                .Where(b => b.Net > 0)
+                .Where(b => Math.Sign(b.Net) == sign)
                 .Select(b =>
                 {
                     var cat = b.CategoryId is { } id ? lookup.GetValueOrDefault(id) : null;
-                    return new IncomeCategoryDto(b.CategoryId, cat?.Code ?? Uncategorized, cat?.Name ?? Uncategorized, b.Net, cat?.CategoryClassId);
+                    return new MonthlyCategoryDto(b.CategoryId, cat?.Code ?? Uncategorized, cat?.Name ?? Uncategorized, b.Net * sign, cat?.CategoryClassId);
                 })
                 .OrderByDescending(c => c.Total)
                 .ToArray();
             var byClass = byCategory
                 .GroupBy(c => c.CategoryClassId)
-                .Select(g => new IncomeClassDto(
+                .Select(g => new MonthlyClassDto(
                     g.Key,
                     g.Key is null ? Unclassed : lookup[g.First().CategoryId!.Value].CategoryClass?.Name ?? Unclassed,
                     g.Sum(c => c.Total)))
                 .OrderByDescending(c => c.Total)
                 .ToArray();
-            return new IncomeMonthDto(m, byCategory.Sum(c => c.Total), byCategory, byClass);
+            return new MonthlyMonthDto(m, byCategory.Sum(c => c.Total), byCategory, byClass);
         }).ToArray();
 
-        return new IncomeResult(months.Sum(m => m.Total), months);
+        return new MonthlyResult(months.Sum(m => m.Total), months);
     }
 
     /// <summary>

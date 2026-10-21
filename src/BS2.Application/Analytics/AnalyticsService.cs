@@ -12,8 +12,11 @@ public sealed class AnalyticsService(IAppDbContext db, ICurrentUser user)
     public async Task<ExpensesResult> ExpensesAsync(TransactionFilter filter, CancellationToken ct = default) =>
         AnalyticsCalculator.Expenses(await RowsAsync(filter, ct), await db.Categories.Include(c => c.CategoryClass).ToListAsync(ct));
 
-    public async Task<IncomeResult> IncomeAsync(TransactionFilter filter, CancellationToken ct = default) =>
+    public async Task<MonthlyResult> IncomeAsync(TransactionFilter filter, CancellationToken ct = default) =>
         AnalyticsCalculator.Income(await RowsAsync(filter, ct), filter.From, filter.To, await db.Categories.Include(c => c.CategoryClass).ToListAsync(ct));
+
+    public async Task<MonthlyResult> MonthlyExpensesAsync(TransactionFilter filter, CancellationToken ct = default) =>
+        AnalyticsCalculator.MonthlyExpenses(await RowsAsync(filter, ct), filter.From, filter.To, await db.Categories.Include(c => c.CategoryClass).ToListAsync(ct));
 
     public async Task<SavingsResult> SavingsAsync(TransactionFilter filter, CancellationToken ct = default) =>
         AnalyticsCalculator.Savings(await RowsAsync(filter, ct), filter.From, filter.To);

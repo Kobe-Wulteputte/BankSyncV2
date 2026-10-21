@@ -24,6 +24,7 @@ void lookups.load()
 
 const nav = [
   { name: 'expenses', label: 'Expenses', icon: 'pi pi-chart-pie' },
+  { name: 'monthly', label: 'Monthly expenses', icon: 'pi pi-calendar' },
   { name: 'income', label: 'Income', icon: 'pi pi-chart-bar' },
   { name: 'savings', label: 'Savings', icon: 'pi pi-wallet' },
   { name: 'cashflow', label: 'Cash flow', icon: 'pi pi-arrow-right-arrow-left' },
@@ -97,7 +98,7 @@ const doLogout = () => logout({ logoutParams: { returnTo: window.location.origin
         <RouterLink
           v-for="item in nav"
           :key="item.name"
-          :to="{ name: item.name, query: filter.toUrlQuery() }"
+          :to="{ name: item.name, query: filter.toUrlQuery({ withSearch: false }) }"
           class="nav-link"
           active-class="active"
         >
@@ -122,7 +123,8 @@ const doLogout = () => logout({ logoutParams: { returnTo: window.location.origin
         </template>
       </Dialog>
       <main class="content">
-        <RouterView :key="dataVersion" />
+        <!-- Route name in the key: Income and Monthly expenses share one component that reads its kind once. -->
+        <RouterView :key="`${String($route.name)}-${dataVersion}`" />
       </main>
     </div>
   </div>

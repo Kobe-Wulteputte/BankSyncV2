@@ -87,4 +87,20 @@ describe('useFilterStore', () => {
     expect(again.excludeCategoryIds).toEqual([9])
     expect({ from: again.from, to: again.to }).toEqual(presetRange('lastYear'))
   })
+
+  it('keeps search out of storage and out of menu links', () => {
+    const s = useFilterStore()
+    s.search = 'coffee'
+    s.persist()
+    expect(JSON.parse(localStorage.getItem('bs2.filter')!).search).toBe('')
+    expect(s.toUrlQuery().search).toBe('coffee')
+    expect(s.toUrlQuery({ withSearch: false }).search).toBeUndefined()
+  })
+
+  it('clears search when arriving on a URL without one', () => {
+    const s = useFilterStore()
+    s.search = 'coffee'
+    s.fromUrlQuery(s.toUrlQuery({ withSearch: false }) as never)
+    expect(s.search).toBe('')
+  })
 })

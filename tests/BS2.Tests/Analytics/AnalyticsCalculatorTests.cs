@@ -79,6 +79,17 @@ public class AnalyticsCalculatorTests
     }
 
     [Fact]
+    public void Monthly_expenses_net_each_category_per_month_as_positive_totals()
+    {
+        var result = AnalyticsCalculator.MonthlyExpenses(Sample, null, null, Categories);
+
+        Assert.Equal(["2026-01", "2026-02", "2026-03"], result.Months.Select(m => m.Month));
+        Assert.Equal([450m, 0m, 60m], result.Months.Select(m => m.Total)); // Jan 100 + 300 + 50; Mar Food -100 + 40
+        Assert.Equal(["Rent", "Food", "Uncategorized"], result.Months[0].ByCategory.Select(c => c.Code));
+        Assert.Equal(510m, result.Total); // matches Expenses() total for the same rows
+    }
+
+    [Fact]
     public void Expenses_empty_input()
     {
         var result = AnalyticsCalculator.Expenses([], Categories);

@@ -219,27 +219,28 @@ export interface ExpensesAnalytics {
   classes: ExpenseClassRow[]
 }
 
-export interface IncomeByCategory {
+export interface MonthlyByCategory {
   categoryId: number | null
   code: string
   name: string
   total: number
   categoryClassId: number | null
 }
-export interface IncomeByClass {
+export interface MonthlyByClass {
   categoryClassId: number | null
   name: string
   total: number
 }
-export interface IncomeMonth {
+export interface MonthlyMonth {
   month: string
   total: number
-  byCategory: IncomeByCategory[]
-  byClass: IncomeByClass[]
+  byCategory: MonthlyByCategory[]
+  byClass: MonthlyByClass[]
 }
-export interface IncomeAnalytics {
+/** Income or expenses per month, totals positive either way. */
+export interface MonthlyAnalytics {
   total: number
-  months: IncomeMonth[]
+  months: MonthlyMonth[]
 }
 
 export interface SavingsMonth {

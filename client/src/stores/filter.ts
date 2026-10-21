@@ -89,7 +89,7 @@ export const useFilterStore = defineStore('filter', {
       return toSearchParams({ ...this.apiFilter, ...extra }).toString()
     },
     /** Router query object (shareable URL). Only non-default keys are written. */
-    toUrlQuery(): LocationQueryRaw {
+    toUrlQuery({ withSearch = true } = {}): LocationQueryRaw {
       const q: LocationQueryRaw = {}
       if (this.from) q.from = this.from
       if (this.to) q.to = this.to
@@ -97,7 +97,7 @@ export const useFilterStore = defineStore('filter', {
       if (this.accountIds.length) q.accountIds = this.accountIds.join(',')
       if (this.excludeGroupIds.length) q.excludeGroupIds = this.excludeGroupIds.join(',')
       q.excludeReimbursed = String(this.excludeReimbursed)
-      if (this.search.trim()) q.search = this.search.trim()
+      if (withSearch && this.search.trim()) q.search = this.search.trim()
       return q
     },
     fromUrlQuery(q: LocationQuery) {
@@ -115,7 +115,8 @@ export const useFilterStore = defineStore('filter', {
     },
     persist() {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.$state))
+        // Search is per visit to Transactions; restored on another page it would filter it invisibly.
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...this.$state, search: '' }))
       } catch {
         // storage unavailable; nothing to do
       }

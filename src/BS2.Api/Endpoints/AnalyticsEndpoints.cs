@@ -11,6 +11,9 @@ public static class AnalyticsEndpoints
         group.MapGet("/expenses", async (HttpRequest request, AnalyticsService analytics, CancellationToken ct) =>
             Results.Ok(await analytics.ExpensesAsync(QueryBinding.BindFilter(request.Query), ct)));
 
+        group.MapGet("/expenses/monthly", async (HttpRequest request, AnalyticsService analytics, CancellationToken ct) =>
+            Results.Ok(await analytics.MonthlyExpensesAsync(QueryBinding.BindFilter(request.Query), ct)));
+
         group.MapGet("/income", async (HttpRequest request, AnalyticsService analytics, CancellationToken ct) =>
             Results.Ok(await analytics.IncomeAsync(QueryBinding.BindFilter(request.Query), ct)));
 

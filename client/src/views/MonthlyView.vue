@@ -4,7 +4,7 @@ import DataTable from 'primevue/datatable'
 import SelectButton from 'primevue/selectbutton'
 import Skeleton from 'primevue/skeleton'
 import { computed, onMounted, watch } from 'vue'
-import { getIncome } from '@/api/analytics'
+import { getIncome, getMonthlyExpenses } from '@/api/analytics'
 import { VChart, type EChartsOption } from '@/charts'
 import FilterBar from '@/components/FilterBar.vue'
 import StatTile from '@/components/StatTile.vue'
@@ -13,12 +13,17 @@ import { useFilterStore } from '@/stores/filter'
 import { useLookupStore } from '@/stores/lookups'
 import { distinctColors, formatMoney, formatMonth, UNCATEGORIZED_COLOR } from '@/utils/format'
 
+/** One page for both directions: the income bars and the monthly expense bars share everything but data and labels. */
+const props = defineProps<{ kind: 'income' | 'expenses' }>()
+const income = props.kind === 'income'
+const label = income ? 'income' : 'expenses'
+
 const filter = useFilterStore()
 const lookups = useLookupStore()
 const dark = useDark()
-const groupBy = useGroupBy('bs2.income.groupBy')
+const groupBy = useGroupBy(`bs2.${props.kind}.monthly.groupBy`)
 
-const { data, loading, run } = useAsync(() => getIncome(filter.apiFilter))
+const { data, loading, run } = useAsync(() => (income ? getIncome : getMonthlyExpenses)(filter.apiFilter))
 onMounted(run)
 watch(() => filter.apiFilter, run, { deep: true })
 
@@ -78,7 +83,7 @@ const option = computed<EChartsOption>(() => ({
   yAxis: { type: 'value', axisLabel: { formatter: (v: number) => formatMoney(v) } },
   series: series.value.map((s) => ({
     type: 'bar',
-    stack: 'income',
+    stack: label,
     name: s.name,
     data: s.data,
     itemStyle: { color: s.color },
@@ -88,11 +93,11 @@ const option = computed<EChartsOption>(() => ({
 
 <template>
   <div class="page">
-  <h1 class="page-title">Income</h1>
+  <h1 class="page-title">{{ income ? 'Income' : 'Monthly expenses' }}</h1>
   <FilterBar />
 
   <div class="tiles mb-3">
-    <StatTile label="Total income" :value="formatMoney(data?.total ?? 0)" :loading="loading" tone="pos" />
+    <StatTile :label="`Total ${label}`" :value="formatMoney(data?.total ?? 0)" :loading="loading" :tone="income ? 'pos' : 'neg'" />
     <StatTile label="Average per month" :value="formatMoney((data?.total ?? 0) / monthCount)"
       :sub="`over ${monthCount} month${monthCount === 1 ? '' : 's'}`" :loading="loading" />
   </div>
@@ -102,13 +107,13 @@ const option = computed<EChartsOption>(() => ({
 
   <div class="card chart-card mb-3">
     <Skeleton v-if="loading" class="chart" />
-    <div v-else-if="!series.length" class="empty">No income in this range</div>
+    <div v-else-if="!series.length" class="empty">No {{ label }} in this range</div>
     <VChart v-else class="chart" :option="option" :theme="dark ? 'dark' : undefined" autoresize />
   </div>
 
   <div class="card" style="padding: 0">
     <DataTable :value="months" :loading="loading" size="small" data-key="month">
-      <template #empty><div class="empty">No income in this range</div></template>
+      <template #empty><div class="empty">No {{ label }} in this range</div></template>
       <Column header="Month"><template #body="{ data: m }">{{ formatMonth(m.month) }}</template></Column>
       <Column header="Total" body-class="right" header-class="right">
         <template #body="{ data: m }">{{ formatMoney(m.total) }}</template>
