@@ -103,7 +103,7 @@ public sealed class BankConnectionService(
     public async Task<StartAuthorizationResult> StartAuthorizationAsync(Guid id, CancellationToken ct = default)
     {
         var connection = await FindAsync(id, ct);
-        var (pending, _) = await flow.EnsurePendingAsync(connection, ct);
+        var (pending, _) = await flow.EnsurePendingAsync(connection, ct, reuseLive: false);
         return new StartAuthorizationResult(pending.Url, pending.State, pending.ExpiresAt);
     }
 

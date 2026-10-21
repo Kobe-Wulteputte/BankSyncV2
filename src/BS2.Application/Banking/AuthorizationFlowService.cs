@@ -25,8 +25,10 @@ public sealed class AuthorizationFlowService(
     /// <summary>
     /// Returns the outstanding non-expired link for the connection, or starts a new one (replacing
     /// any stale rows). <c>Created</c> tells the caller whether a mail is due.
+    /// <paramref name="reuseLive"/> false always starts a new link: a provider link works only once,
+    /// so a user retrying after a failed attempt must not be handed the spent one again.
     /// </summary>
-    public async Task<(PendingAuthorization Pending, bool Created)> EnsurePendingAsync(BankConnection connection, CancellationToken ct)
+    public async Task<(PendingAuthorization Pending, bool Created)> EnsurePendingAsync(BankConnection connection, CancellationToken ct, bool reuseLive = true)
     {
         var now = clock.UtcNow;
         var existing = await db.PendingAuthorizations
@@ -34,7 +36,7 @@ public sealed class AuthorizationFlowService(
             .ToListAsync(ct);
 
         var live = existing.Where(p => p.ExpiresAt > now).OrderByDescending(p => p.CreatedAt).FirstOrDefault();
-        if (live is not null) return (live, false);
+        if (reuseLive && live is not null) return (live, false);
 
         var state = Guid.NewGuid().ToString("N");
         var redirectUrl = new Uri($"{appOptions.Value.PublicOrigin.TrimEnd('/')}/api/banks/callback");

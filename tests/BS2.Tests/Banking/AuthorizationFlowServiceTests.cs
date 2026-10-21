@@ -180,4 +180,23 @@ public class AuthorizationFlowServiceTests
         Assert.Equal(_clock.UtcNow.AddHours(24), fresh.ExpiresAt);
         Assert.Equal([fresh.State], await db.PendingAuthorizations.Select(p => p.State).ToListAsync());
     }
+
+    [Fact]
+    public async Task EnsurePending_without_reuse_replaces_outstanding_link()
+    {
+        await using var db = TestEnv.NewDb(_encryptor);
+        var connection = TestEnv.NewConnection(_clock, status: ConnectionStatus.NotAuthorized, sessionId: null);
+        db.AddRange(connection, new PendingAuthorization
+        {
+            Id = Guid.NewGuid(), UserId = TestEnv.UserId, BankConnectionId = connection.Id, State = "spent", Url = "https://bank.example/spent",
+            CreatedAt = _clock.UtcNow.AddMinutes(-5), ExpiresAt = _clock.UtcNow.AddHours(23)
+        });
+        await db.SaveChangesAsync();
+
+        var (fresh, created) = await CreateSut(db).EnsurePendingAsync(connection, CancellationToken.None, reuseLive: false);
+
+        Assert.True(created);
+        Assert.NotEqual("spent", fresh.State);
+        Assert.Equal([fresh.State], await db.PendingAuthorizations.Select(p => p.State).ToListAsync());
+    }
 }
