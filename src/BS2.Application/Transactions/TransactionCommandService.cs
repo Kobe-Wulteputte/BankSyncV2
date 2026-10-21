@@ -51,6 +51,66 @@ public sealed class TransactionCommandService(
         return await queries.GetAsync(id, ct);
     }
 
+    public async Task<TransactionDto> CreateAsync(TransactionInput input, CancellationToken ct = default)
+    {
+        var now = clock.UtcNow;
+        var tx = new Transaction
+        {
+            Id = Guid.NewGuid(), UserId = user.UserId, Source = TransactionSource.Manual,
+            // Own namespace so it never matches a provider id during sync dedup.
+            ExternalId = $"manual:{Guid.NewGuid():N}", CreatedAt = now
+        };
+        await ApplyAsync(tx, input, ct);
+        db.Transactions.Add(tx);
+        await db.SaveChangesAsync(ct);
+        return await queries.GetAsync(tx.Id, ct);
+    }
+
+    public async Task<TransactionDto> UpdateAsync(Guid id, TransactionInput input, CancellationToken ct = default)
+    {
+        var tx = await db.Transactions.Include(t => t.Groups)
+                     .FirstOrDefaultAsync(t => t.Id == id && t.UserId == user.UserId, ct)
+                 ?? throw new NotFoundException($"Transaction {id} not found.");
+        await ApplyAsync(tx, input, ct);
+        await db.SaveChangesAsync(ct);
+        return await queries.GetAsync(id, ct);
+    }
+
+    private async Task ApplyAsync(Transaction tx, TransactionInput input, CancellationToken ct)
+    {
+        if (input.Amount == 0) throw new ValidationException("amount", "Amount cannot be zero.");
+        var name = input.CounterpartyName?.Trim() ?? "";
+        var description = input.Description?.Trim() ?? "";
+        if (name.Length == 0 && description.Length == 0)
+            throw new ValidationException("counterpartyName", "Enter a counterparty or a description.");
+        var currency = string.IsNullOrWhiteSpace(input.Currency) ? "EUR" : input.Currency.Trim().ToUpperInvariant();
+        if (currency.Length != 3) throw new ValidationException("currency", "Use a three-letter currency code.");
+        var notes = input.Notes?.Trim();
+        if (notes is { Length: > MaxNotesLength }) throw new ValidationException("notes", $"Notes can be at most {MaxNotesLength} characters.");
+        if (!await db.Accounts.AnyAsync(a => a.Id == input.AccountId && a.UserId == user.UserId, ct))
+            throw new ValidationException("accountId", "Account does not exist.");
+        if (input.CategoryId is { } categoryId && categoryId != tx.CategoryId) await EnsureCategoryAsync(categoryId, ct);
+        var groupIds = input.GroupIds?.Distinct().ToArray() ?? [];
+        await EnsureGroupsAsync(groupIds, ct);
+
+        tx.Date = input.Date;
+        tx.AccountId = input.AccountId;
+        tx.Amount = input.Amount;
+        tx.Currency = currency;
+        tx.CounterpartyName = name;
+        tx.CounterpartyIban = string.IsNullOrWhiteSpace(input.CounterpartyIban) ? null : input.CounterpartyIban.Trim();
+        tx.Description = description;
+        tx.Reimbursed = input.Reimbursed;
+        tx.Notes = string.IsNullOrEmpty(notes) ? null : notes;
+        // Only a changed category counts as manual; an untouched AI or import label keeps its source.
+        if (input.CategoryId != tx.CategoryId) SetCategory(tx, input.CategoryId);
+
+        foreach (var tg in tx.Groups.Where(g => !groupIds.Contains(g.GroupId)).ToList()) tx.Groups.Remove(tg);
+        foreach (var gid in groupIds.Where(w => tx.Groups.All(g => g.GroupId != w)))
+            tx.Groups.Add(new TransactionGroup { TransactionId = tx.Id, GroupId = gid, CreatedAt = clock.UtcNow });
+        tx.UpdatedAt = clock.UtcNow;
+    }
+
     public async Task<int> BulkAsync(BulkRequest request, CancellationToken ct = default)
     {
         if (request.Ids is not { Length: > 0 }) return 0;

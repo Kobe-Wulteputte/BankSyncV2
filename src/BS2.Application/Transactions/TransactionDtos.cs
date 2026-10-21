@@ -62,6 +62,20 @@ public sealed record PatchTransactionRequest(
     Guid[]? GroupIds = null,
     bool NotesSpecified = false);
 
+/// <summary>Every editable field; used to create a manual entry and to edit any transaction.</summary>
+public sealed record TransactionInput(
+    DateOnly Date,
+    Guid AccountId,
+    decimal Amount,
+    string? Currency,
+    string? CounterpartyName,
+    string? CounterpartyIban,
+    string? Description,
+    int? CategoryId,
+    Guid[]? GroupIds,
+    bool Reimbursed,
+    string? Notes);
+
 public sealed record BulkRequest(
     Guid[] Ids,
     bool CategorySpecified = false,

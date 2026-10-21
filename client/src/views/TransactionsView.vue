@@ -15,6 +15,7 @@ import type { PatchTransactionBody, TransactionDto, TransactionPage, Transaction
 import ClassificationHistory from '@/components/ClassificationHistory.vue'
 import FilterBar from '@/components/FilterBar.vue'
 import GroupDialog from '@/components/GroupDialog.vue'
+import TransactionDialog from '@/components/TransactionDialog.vue'
 import { useAsync } from '@/composables'
 import { useFilterStore } from '@/stores/filter'
 import { useLookupStore } from '@/stores/lookups'
@@ -86,6 +87,15 @@ async function patch(id: string, body: PatchTransactionBody) {
     run() // revert the optimistic control state
   }
 }
+const txDialog = ref(false)
+const editing = ref<TransactionDto | null>(null)
+function openTxDialog(t: TransactionDto | null) {
+  editing.value = t
+  txDialog.value = true
+}
+// A new or edited entry may fall outside the current filter or sort position, so reload the page.
+const onTxSaved = () => run()
+
 async function refreshRow(id: string) {
   try {
     replaceRow(await getTransaction(id))
@@ -122,6 +132,7 @@ const sourceBadge = (t: TransactionDto) =>
 </script>
 
 <template>
+  <div class="fill">
   <h1 class="page-title">Transactions</h1>
   <FilterBar show-search />
 
@@ -145,9 +156,10 @@ const sourceBadge = (t: TransactionDto) =>
         @click="bulk({ addGroupIds: [bulkGroup!] })" />
     </template>
     <Button label="Create group" icon="pi pi-plus" size="small" outlined @click="groupDialog = true" />
+    <Button label="Add transaction" icon="pi pi-plus" size="small" @click="openTxDialog(null)" />
   </div>
 
-  <div class="card" style="padding: 0">
+  <div class="card table-card" style="padding: 0">
     <DataTable
       v-model:selection="selection"
       v-model:expanded-rows="expandedRows"
@@ -165,6 +177,7 @@ const sourceBadge = (t: TransactionDto) =>
       size="small"
       row-hover
       scrollable
+      scroll-height="flex"
       @page="onPage"
       @sort="onSort"
     >
@@ -225,6 +238,12 @@ const sourceBadge = (t: TransactionDto) =>
         </template>
       </Column>
 
+      <Column header-style="width: 3rem" body-class="center">
+        <template #body="{ data: t }">
+          <Button icon="pi pi-pencil" text rounded size="small" aria-label="Edit" v-tooltip.top="'Edit'" @click="openTxDialog(t)" />
+        </template>
+      </Column>
+
       <template #expansion="{ data: t }">
         <ClassificationHistory :transaction-id="t.id" @reclassified="refreshRow(t.id)" />
       </template>
@@ -232,4 +251,12 @@ const sourceBadge = (t: TransactionDto) =>
   </div>
 
   <GroupDialog v-model:visible="groupDialog" />
+  <TransactionDialog v-model:visible="txDialog" :transaction="editing" @saved="onTxSaved" />
+  </div>
 </template>
+
+<style scoped>
+/* The page fills the content area and only the table body scrolls; header, paginator and sum stay put. */
+.fill { display: flex; flex-direction: column; height: 100%; }
+.table-card { flex: 1; min-height: 20rem; display: flex; flex-direction: column; }
+</style>

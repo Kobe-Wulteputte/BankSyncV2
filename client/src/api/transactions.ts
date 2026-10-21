@@ -5,6 +5,7 @@ import type {
   Guid,
   PatchTransactionBody,
   TransactionDto,
+  TransactionInputBody,
   TransactionPage,
   TransactionQuery,
 } from './types'
@@ -14,6 +15,10 @@ export const listTransactions = (query: TransactionQuery) =>
 export const getTransaction = (id: Guid) => api<TransactionDto>(`/transactions/${id}`)
 export const patchTransaction = (id: Guid, body: PatchTransactionBody) =>
   api<TransactionDto>(`/transactions/${id}`, { method: 'PATCH', body })
+export const createTransaction = (body: TransactionInputBody) =>
+  api<TransactionDto>('/transactions', { method: 'POST', body })
+export const updateTransaction = (id: Guid, body: TransactionInputBody) =>
+  api<TransactionDto>(`/transactions/${id}`, { method: 'PUT', body })
 export const bulkUpdateTransactions = (body: BulkTransactionBody) =>
   api<{ updated: number }>('/transactions/bulk', { method: 'POST', body })
 export const listClassifications = (id: Guid) => api<ClassificationRunDto[]>(`/transactions/${id}/classifications`)

@@ -184,4 +184,54 @@ public class TransactionCommandServiceTests
         await using var _ = db;
         Assert.Equal(0, await Service(db).BulkAsync(new BulkRequest([], CategorySpecified: true, CategoryId: 2)));
     }
+
+    [Fact]
+    public async Task Create_adds_a_manual_entry_with_its_own_external_id()
+    {
+        var (db, tx, g1, _) = await Seed();
+        await using var _ = db;
+
+        var created = await Service(db).CreateAsync(new TransactionInput(
+            new DateOnly(2025, 12, 24), tx.AccountId, -40m, null, " Market ", null, "Gifts", 2, [g1.Id], false, null));
+
+        Assert.Equal(TransactionSource.Manual, created.Source);
+        Assert.Equal("Market", created.CounterpartyName);
+        Assert.Equal("EUR", created.Currency);
+        Assert.Equal(ClassificationSource.Manual, created.ClassificationSource);
+        Assert.Equal([g1.Id], created.GroupIds);
+        Assert.StartsWith("manual:", (await db.Transactions.SingleAsync(t => t.Id == created.Id)).ExternalId);
+    }
+
+    [Fact]
+    public async Task Update_edits_every_field_and_keeps_an_unchanged_category_source()
+    {
+        var (db, tx, _, g2) = await Seed();
+        await using var _ = db;
+
+        var updated = await Service(db).UpdateAsync(tx.Id, new TransactionInput(
+            new DateOnly(2026, 1, 15), tx.AccountId, 99.5m, "usd", "Refund", "BE68539007547034", "Returned", 1, [g2.Id], true, "note"));
+
+        Assert.Equal(new DateOnly(2026, 1, 15), updated.Date);
+        Assert.Equal(99.5m, updated.Amount);
+        Assert.Equal("USD", updated.Currency);
+        Assert.Equal(("Refund", "BE68539007547034", "Returned"), (updated.CounterpartyName, updated.CounterpartyIban, updated.Description));
+        Assert.Equal(ClassificationSource.Ai, updated.ClassificationSource); // category 1 untouched
+        Assert.Equal([g2.Id], updated.GroupIds);
+        Assert.True(updated.Reimbursed);
+        Assert.Equal("note", updated.Notes);
+    }
+
+    [Fact]
+    public async Task Create_and_update_reject_invalid_input()
+    {
+        var (db, tx, _, _) = await Seed();
+        await using var _ = db;
+        TransactionInput Input(decimal amount = -1m, string? name = "Shop", Guid? account = null) =>
+            new(new DateOnly(2026, 1, 1), account ?? tx.AccountId, amount, null, name, null, null, null, null, false, null);
+
+        await Assert.ThrowsAsync<ValidationException>(() => Service(db).CreateAsync(Input(amount: 0)));
+        await Assert.ThrowsAsync<ValidationException>(() => Service(db).CreateAsync(Input(name: " ")));
+        await Assert.ThrowsAsync<ValidationException>(() => Service(db).CreateAsync(Input(account: Guid.NewGuid())));
+        await Assert.ThrowsAsync<NotFoundException>(() => Service(db).UpdateAsync(Guid.NewGuid(), Input()));
+    }
 }

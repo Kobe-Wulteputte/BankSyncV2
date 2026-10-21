@@ -31,7 +31,8 @@ public enum TransactionSource
 {
     EnableBanking = 0,
     Edenred = 1,
-    ExcelImport = 2
+    ExcelImport = 2,
+    Manual = 3
 }
 
 public enum BankProvider

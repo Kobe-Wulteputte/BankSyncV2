@@ -5,7 +5,7 @@ export type Timestamp = string
 
 export type CategoryKind = 'Expense' | 'Income' | 'Transfer'
 export type ClassificationSource = 'None' | 'Ai' | 'Manual' | 'Import'
-export type TransactionSource = 'EnableBanking' | 'Edenred' | 'ExcelImport'
+export type TransactionSource = 'EnableBanking' | 'Edenred' | 'ExcelImport' | 'Manual'
 export type ClassificationTrigger = 'Sync' | 'Manual' | 'Import' | 'Backfill'
 export type BankProvider = 'EnableBanking' | 'Edenred' | 'Import'
 export type ConnectionStatus = 'NotAuthorized' | 'Active' | 'Expired' | 'Revoked'
@@ -80,6 +80,20 @@ export interface GroupBody {
   color?: string | null
 }
 
+/** Every editable field; creates a manual entry or replaces a transaction's values. */
+export interface TransactionInputBody {
+  date: DateString
+  accountId: Guid
+  amount: number
+  currency: string
+  counterpartyName: string
+  counterpartyIban: string | null
+  description: string
+  categoryId: number | null
+  groupIds: Guid[]
+  reimbursed: boolean
+  notes: string | null
+}
 export interface AccountDto {
   id: Guid
   bankConnectionId: Guid

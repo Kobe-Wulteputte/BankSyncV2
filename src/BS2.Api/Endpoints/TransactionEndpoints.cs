@@ -41,6 +41,15 @@ public static class TransactionEndpoints
             return Results.Ok(await commands.PatchAsync(id, request, ct));
         });
 
+        group.MapPost("/", async (TransactionInput input, TransactionCommandService commands, CancellationToken ct) =>
+        {
+            var created = await commands.CreateAsync(input, ct);
+            return Results.Created($"/api/transactions/{created.Id}", created);
+        });
+
+        group.MapPut("/{id:guid}", async (Guid id, TransactionInput input, TransactionCommandService commands, CancellationToken ct) =>
+            Results.Ok(await commands.UpdateAsync(id, input, ct)));
+
         group.MapPost("/bulk", async (JsonElement body, TransactionCommandService commands, CancellationToken ct) =>
         {
             RequireObject(body);
