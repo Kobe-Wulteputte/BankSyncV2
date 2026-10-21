@@ -27,7 +27,7 @@ public class AnalyticsCalculatorTests
         Row("2026-01-12", 500, Transfer),
         Row("2026-03-02", -100, Food, reimbursed: true),
         Row("2026-03-03", 1000, Salary),
-        Row("2026-03-04", 40, Food)               // positive amount in an Expense category counts as income by sign
+        Row("2026-03-04", 40, Food)               // a refund: nets against Food instead of counting as income
     ];
 
     [Fact]
@@ -35,10 +35,10 @@ public class AnalyticsCalculatorTests
     {
         var result = AnalyticsCalculator.Expenses(Sample, Categories);
 
-        Assert.Equal(550m, result.Total);
-        Assert.Equal(4, result.Count);
+        Assert.Equal(510m, result.Total);
+        Assert.Equal(5, result.Count);
         Assert.Equal(["Rent", "Food", "Uncategorized"], result.Categories.Select(c => c.Code));
-        Assert.Equal([300m, 200m, 50m], result.Categories.Select(c => c.Total));
+        Assert.Equal([300m, 160m, 50m], result.Categories.Select(c => c.Total));
         Assert.Equal("#f00", result.Categories[1].Color);
     }
 
@@ -47,7 +47,7 @@ public class AnalyticsCalculatorTests
     {
         var result = AnalyticsCalculator.Expenses(Sample, Categories);
         Assert.Equal(1m, result.Categories.Sum(c => c.Share), 10);
-        Assert.Equal(300m / 550m, result.Categories[0].Share);
+        Assert.Equal(300m / 510m, result.Categories[0].Share);
     }
 
     [Fact]
@@ -63,8 +63,19 @@ public class AnalyticsCalculatorTests
     public void Expenses_includes_reimbursed_rows()
     {
         var food = AnalyticsCalculator.Expenses(Sample, Categories).Categories.Single(c => c.CategoryId == Food.Id);
-        Assert.Equal(200m, food.Total);
-        Assert.Equal(2, food.Count);
+        Assert.Equal(160m, food.Total); // -100 - 100 + 40
+        Assert.Equal(3, food.Count);
+    }
+
+    [Fact]
+    public void Category_lands_on_the_side_of_its_sum()
+    {
+        AnalyticsRow[] rows = [Row("2026-05-01", -30, Food), Row("2026-05-20", 50, Food), Row("2026-05-02", -10, Rent)];
+
+        Assert.Equal(["Rent"], AnalyticsCalculator.Expenses(rows, Categories).Categories.Select(c => c.Code));
+        var may = Assert.Single(AnalyticsCalculator.Income(rows, null, null, Categories).Months);
+        Assert.Equal(20m, Assert.Single(may.ByCategory, c => c.Code == "Food").Total);
+        Assert.DoesNotContain(may.ByCategory, c => c.Code == "Rent");
     }
 
     [Fact]
@@ -81,8 +92,8 @@ public class AnalyticsCalculatorTests
         var result = AnalyticsCalculator.Income(Sample, new DateOnly(2025, 12, 1), new DateOnly(2026, 4, 30), Categories);
 
         Assert.Equal(["2025-12", "2026-01", "2026-02", "2026-03", "2026-04"], result.Months.Select(m => m.Month));
-        Assert.Equal([0m, 2025m, 0m, 1040m, 0m], result.Months.Select(m => m.Total));
-        Assert.Equal(3065m, result.Total);
+        Assert.Equal([0m, 2025m, 0m, 1000m, 0m], result.Months.Select(m => m.Total)); // March Food nets to -60
+        Assert.Equal(3025m, result.Total);
     }
 
     [Fact]

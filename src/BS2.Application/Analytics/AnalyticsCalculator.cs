@@ -1,4 +1,3 @@
-using BS2.Application.Common;
 using BS2.Domain.Entities;
 using BS2.Domain.Enums;
 
@@ -27,10 +26,9 @@ public static class AnalyticsCalculator
     public static ExpensesResult Expenses(IEnumerable<AnalyticsRow> rows, IEnumerable<Category> categories)
     {
         var lookup = categories.ToDictionary(c => c.Id);
-        var buckets = rows
-            .Where(r => TransactionRules.IsExpense(r.Amount, r.Kind))
-            .GroupBy(r => r.CategoryId)
-            .Select(g => (CategoryId: g.Key, Total: -g.Sum(r => r.Amount), Count: g.Count()))
+        var buckets = NetByCategory(rows)
+            .Where(b => b.Net < 0)
+            .Select(b => (b.CategoryId, Total: -b.Net, b.Count))
             .OrderByDescending(b => b.Total)
             .ToList();
 
@@ -60,18 +58,17 @@ public static class AnalyticsCalculator
     public static IncomeResult Income(IEnumerable<AnalyticsRow> rows, DateOnly? from, DateOnly? to, IEnumerable<Category> categories)
     {
         var lookup = categories.ToDictionary(c => c.Id);
-        var income = rows.Where(r => TransactionRules.IsIncome(r.Amount, r.Kind)).ToList();
-        var byMonth = income.ToLookup(r => MonthKey(r.Date));
+        var relevant = rows.Where(r => r.Kind != CategoryKind.Transfer && r.Amount != 0).ToList();
+        var byMonth = relevant.ToLookup(r => MonthKey(r.Date));
 
-        var months = Months(income, from, to).Select(m =>
+        var months = Months(relevant.Where(r => r.Amount > 0).ToList(), from, to).Select(m =>
         {
-            var inMonth = byMonth[m];
-            var byCategory = inMonth
-                .GroupBy(r => r.CategoryId)
-                .Select(g =>
+            var byCategory = NetByCategory(byMonth[m])
+                .Where(b => b.Net > 0)
+                .Select(b =>
                 {
-                    var cat = g.Key is { } id ? lookup.GetValueOrDefault(id) : null;
-                    return new IncomeCategoryDto(g.Key, cat?.Code ?? Uncategorized, cat?.Name ?? Uncategorized, g.Sum(r => r.Amount), cat?.CategoryClassId);
+                    var cat = b.CategoryId is { } id ? lookup.GetValueOrDefault(id) : null;
+                    return new IncomeCategoryDto(b.CategoryId, cat?.Code ?? Uncategorized, cat?.Name ?? Uncategorized, b.Net, cat?.CategoryClassId);
                 })
                 .OrderByDescending(c => c.Total)
                 .ToArray();
@@ -83,11 +80,21 @@ public static class AnalyticsCalculator
                     g.Sum(c => c.Total)))
                 .OrderByDescending(c => c.Total)
                 .ToArray();
-            return new IncomeMonthDto(m, inMonth.Sum(r => r.Amount), byCategory, byClass);
+            return new IncomeMonthDto(m, byCategory.Sum(c => c.Total), byCategory, byClass);
         }).ToArray();
 
-        return new IncomeResult(income.Sum(r => r.Amount), months);
+        return new IncomeResult(months.Sum(m => m.Total), months);
     }
+
+    /// <summary>
+    /// Sums every non-transfer row per category, so a refund lowers its category's expense and a
+    /// category lands on the expense or income side by the sign of its sum. Uncategorized rows stay
+    /// split by sign: they are unrelated entries, and netting them would hide both sides.
+    /// </summary>
+    private static IEnumerable<(int? CategoryId, decimal Net, int Count)> NetByCategory(IEnumerable<AnalyticsRow> rows) =>
+        rows.Where(r => r.Kind != CategoryKind.Transfer && r.Amount != 0)
+            .GroupBy(r => (r.CategoryId, UncategorizedIncome: r.CategoryId is null && r.Amount > 0))
+            .Select(g => (g.Key.CategoryId, g.Sum(r => r.Amount), g.Count()));
 
     public static SavingsResult Savings(IEnumerable<AnalyticsRow> rows, DateOnly? from, DateOnly? to)
     {

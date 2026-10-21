@@ -1,6 +1,5 @@
 using System.Globalization;
 using BS2.Domain.Entities;
-using BS2.Domain.Enums;
 
 namespace BS2.Application.Common;
 
@@ -15,12 +14,6 @@ public static class TransactionRules
         if (bookingDate is null) return valueDate.Value;
         return valueDate.Value < bookingDate.Value ? valueDate.Value : bookingDate.Value;
     }
-
-    public static bool IsExpense(decimal amount, CategoryKind? kind) =>
-        amount < 0 && kind != CategoryKind.Transfer;
-
-    public static bool IsIncome(decimal amount, CategoryKind? kind) =>
-        amount > 0 && kind != CategoryKind.Transfer;
 
     /// <summary>
     /// V1 formatted the amount with the current culture, and the training data was generated on an
