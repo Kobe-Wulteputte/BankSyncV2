@@ -12,7 +12,7 @@ public sealed class GroupService(IAppDbContext db, ICurrentUser user, IClock clo
 {
     public async Task<GroupDto[]> ListAsync(CancellationToken ct = default) =>
         await db.Groups.Where(g => g.UserId == user.UserId)
-            .OrderBy(g => g.Name)
+            .OrderByDescending(g => g.CreatedAt).ThenBy(g => g.Name)
             .Select(g => new GroupDto(g.Id, g.Name, g.Color, g.Transactions.Count))
             .ToArrayAsync(ct);
 
