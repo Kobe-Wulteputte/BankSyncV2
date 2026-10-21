@@ -40,7 +40,8 @@ public sealed record TransactionFilter(
         }
 
         if (f.GroupIds is { Length: > 0 } groups) q = q.Where(t => t.Groups.Any(g => groups.Contains(g.GroupId)));
-        if (f.ExcludeGroupIds is { Length: > 0 } excluded) q = q.Where(t => !t.Groups.Any(g => excluded.Contains(g.GroupId)));
+        // A narrowed group selection keeps only rows in at least one selected group; ungrouped rows drop out.
+        if (f.ExcludeGroupIds is { Length: > 0 } excluded) q = q.Where(t => t.Groups.Any(g => !excluded.Contains(g.GroupId)));
         if (f.ExcludeReimbursed) q = q.Where(t => !t.Reimbursed);
 
         return q;

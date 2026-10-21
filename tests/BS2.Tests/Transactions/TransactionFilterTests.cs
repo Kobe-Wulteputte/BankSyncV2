@@ -88,8 +88,9 @@ public class TransactionFilterTests
         }
 
         Assert.Equal([-10m], await Run(new TransactionFilter(GroupIds: [tripId]), Tag));
-        Assert.Equal([-30m, -20m], await Run(new TransactionFilter(ExcludeGroupIds: [tripId]), Tag));
-        Assert.Equal([-30m], await Run(new TransactionFilter(ExcludeGroupIds: [tripId, workId]), Tag));
+        // -30 has no group, so a narrowed selection never shows it.
+        Assert.Equal([-20m], await Run(new TransactionFilter(ExcludeGroupIds: [tripId]), Tag));
+        Assert.Empty(await Run(new TransactionFilter(ExcludeGroupIds: [tripId, workId]), Tag));
     }
 
     [Fact]
