@@ -8,6 +8,7 @@ export const router = createRouter({
     { path: '/expenses', name: 'expenses', component: () => import('@/views/ExpensesView.vue') },
     { path: '/income', name: 'income', component: () => import('@/views/MonthlyView.vue'), props: { kind: 'income' } },
     { path: '/monthly', name: 'monthly', component: () => import('@/views/MonthlyView.vue'), props: { kind: 'expenses' } },
+    { path: '/yearly', name: 'yearly', component: () => import('@/views/YearlyView.vue') },
     { path: '/savings', name: 'savings', component: () => import('@/views/SavingsView.vue') },
     { path: '/cashflow', name: 'cashflow', component: () => import('@/views/CashFlowView.vue') },
     { path: '/transactions', name: 'transactions', component: () => import('@/views/TransactionsView.vue') },

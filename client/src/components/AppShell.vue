@@ -30,6 +30,7 @@ const nav = [
   { name: 'expenses', label: 'Expenses', icon: 'pi pi-chart-pie', tab: 'Expenses' },
   { name: 'monthly', label: 'Monthly expenses', icon: 'pi pi-calendar', tab: 'Monthly' },
   { name: 'income', label: 'Income', icon: 'pi pi-chart-bar' },
+  { name: 'yearly', label: 'Yearly', icon: 'pi pi-chart-line' },
   { name: 'savings', label: 'Savings', icon: 'pi pi-wallet', tab: 'Savings' },
   { name: 'cashflow', label: 'Cash flow', icon: 'pi pi-arrow-right-arrow-left' },
   { name: 'transactions', label: 'Transactions', icon: 'pi pi-list', tab: 'Transactions' },

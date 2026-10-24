@@ -7,13 +7,14 @@ import SelectButton from 'primevue/selectbutton'
 import Skeleton from 'primevue/skeleton'
 import { computed, onMounted, watch } from 'vue'
 import { getIncome, getMonthlyExpenses } from '@/api/analytics'
-import { VChart, type EChartsOption } from '@/charts'
+import { VChart } from '@/charts'
 import FilterBar from '@/components/FilterBar.vue'
 import StatTile from '@/components/StatTile.vue'
 import { GROUP_BY_OPTIONS, useAsync, useDark, useGroupBy, useMobile } from '@/composables'
 import { useFilterStore } from '@/stores/filter'
 import { useLookupStore } from '@/stores/lookups'
-import { distinctColors, formatMoney, formatMoneyCompact, formatMonth, UNCATEGORIZED_COLOR } from '@/utils/format'
+import { formatMoney, formatMonth } from '@/utils/format'
+import { buildSeries, stackedBarOption } from '@/utils/stackedBars'
 
 /** One page for both directions: the income bars and the monthly expense bars share everything but data and labels. */
 const props = defineProps<{ kind: 'income' | 'expenses' }>()
@@ -33,66 +34,13 @@ watch(() => filter.apiFilter, run, { deep: true })
 const months = computed(() => data.value?.months ?? [])
 const monthCount = computed(() => Math.max(1, months.value.length))
 
-// One stacked series per category (or per class), zero-filled per month.
-const series = computed(() => {
-  const byKey = new Map<string, { name: string; explicit: string | null; data: number[] }>()
-  const add = (key: string, name: string, explicit: string | null, i: number, total: number) => {
-    let s = byKey.get(key)
-    if (!s) {
-      s = { name, explicit, data: new Array<number>(months.value.length).fill(0) }
-      byKey.set(key, s)
-    }
-    s.data[i] = total
-  }
-  months.value.forEach((m, i) => {
-    if (groupBy.value === 'class') {
-      for (const c of m.byClass) {
-        const explicit = c.categoryClassId === null ? UNCATEGORIZED_COLOR : (lookups.classById.get(c.categoryClassId)?.color ?? null)
-        add(String(c.categoryClassId), c.name, explicit, i, c.total)
-      }
-    } else {
-      for (const c of m.byCategory) {
-        const explicit = c.categoryId === null ? UNCATEGORIZED_COLOR : (lookups.categoryById.get(c.categoryId)?.color ?? null)
-        add(c.code, c.name, explicit, i, c.total)
-      }
-    }
-  })
-  // Biggest series first, then colours by rank: a category with a colour set in Settings keeps it,
-  // everything else gets the most distinct remaining hue.
-  const sorted = [...byKey.values()].sort((a, b) => b.data.reduce((x, y) => x + y, 0) - a.data.reduce((x, y) => x + y, 0))
-  const colors = distinctColors(sorted, (s) => s.explicit)
-  return sorted.map((s, i) => ({ name: s.name, color: colors[i]!, data: s.data }))
-})
+const series = computed(() => buildSeries(months.value, groupBy.value, lookups.categoryById, lookups.classById))
 // Each series summed over the whole range, biggest first like the stack (shown on the income page only).
 const totals = computed(() => series.value.map((s) => ({ name: s.name, color: s.color, total: s.data.reduce((a, b) => a + b, 0) })))
 
-const option = computed<EChartsOption>(() => ({
-  backgroundColor: 'transparent',
-  tooltip: {
-    trigger: 'axis',
-    confine: mobile.value,
-    // Stacked bars report every series per month; hide the zero ones and add the month total.
-    formatter: (params) => {
-      const items = (Array.isArray(params) ? params : [params]) as { seriesName?: string; value?: unknown; marker?: string; axisValueLabel?: string }[]
-      const rows = items.filter((p) => Number(p.value) !== 0)
-      if (!rows.length) return ''
-      const total = rows.reduce((sum, p) => sum + Number(p.value), 0)
-      const lines = rows.map((p) => `${p.marker ?? ''}${p.seriesName} <span style="float:right;margin-left:1.5rem">${formatMoney(Number(p.value))}</span>`)
-      return `<b>${rows[0]?.axisValueLabel ?? ''}</b><br/>${lines.join('<br/>')}<br/><b>Total <span style="float:right;margin-left:1.5rem">${formatMoney(total)}</span></b>`
-    },
-  },
-  legend: { type: 'scroll', bottom: 0 },
-  grid: mobile.value ? { left: 52, right: 8, top: 16, bottom: 50 } : { left: 80, right: 20, top: 20, bottom: 50 },
-  xAxis: { type: 'category', data: months.value.map((m) => formatMonth(m.month)) },
-  yAxis: { type: 'value', axisLabel: { formatter: (v: number) => (mobile.value ? formatMoneyCompact(v) : formatMoney(v)) } },
-  series: series.value.map((s) => ({
-    type: 'bar',
-    stack: label,
-    name: s.name,
-    data: s.data,
-    itemStyle: { color: s.color },
-  })),
-}))
+const option = computed(() =>
+  stackedBarOption({ labels: months.value.map((m) => formatMonth(m.month)), series: series.value, stack: label, mobile: mobile.value }),
+)
 </script>
 
 <template>

@@ -8,6 +8,8 @@ export type DatePreset =
   | 'last3Months'
   | 'last6Months'
   | 'last12Months'
+  | 'last3Years'
+  | 'last5Years'
   | 'allTime'
   | 'custom'
 
@@ -19,6 +21,8 @@ export const PRESET_OPTIONS: { label: string; value: DatePreset }[] = [
   { label: 'Last 3 months', value: 'last3Months' },
   { label: 'Last 6 months', value: 'last6Months' },
   { label: 'Last 12 months', value: 'last12Months' },
+  { label: 'Last 3 years', value: 'last3Years' },
+  { label: 'Last 5 years', value: 'last5Years' },
   { label: 'All time', value: 'allTime' },
   { label: 'Custom', value: 'custom' },
 ]
@@ -49,6 +53,11 @@ export function presetRange(preset: DatePreset, now = new Date()): DateRange {
       return { from: toIsoDate(new Date(y, m - 5, 1)), to: toIsoDate(lastDayOf(y, m)) }
     case 'last12Months':
       return { from: toIsoDate(new Date(y, m - 11, 1)), to: toIsoDate(lastDayOf(y, m)) }
+    // whole calendar years, this one included
+    case 'last3Years':
+      return { from: toIsoDate(new Date(y - 2, 0, 1)), to: toIsoDate(new Date(y, 11, 31)) }
+    case 'last5Years':
+      return { from: toIsoDate(new Date(y - 4, 0, 1)), to: toIsoDate(new Date(y, 11, 31)) }
     case 'allTime':
     case 'custom':
       return { from: null, to: null }
@@ -58,7 +67,7 @@ export function presetRange(preset: DatePreset, now = new Date()): DateRange {
 /** Which preset a from/to pair corresponds to today; `custom` when none matches. */
 export function detectPreset(range: DateRange, now = new Date()): DatePreset {
   if (!range.from && !range.to) return 'allTime'
-  for (const p of ['thisMonth', 'lastMonth', 'thisYear', 'lastYear', 'last3Months', 'last6Months', 'last12Months'] as const) {
+  for (const p of ['thisMonth', 'lastMonth', 'thisYear', 'lastYear', 'last3Months', 'last6Months', 'last12Months', 'last3Years', 'last5Years'] as const) {
     const r = presetRange(p, now)
     if (r.from === range.from && r.to === range.to) return p
   }
