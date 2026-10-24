@@ -150,8 +150,9 @@ const commitSearch = () => (filter.search = search.value)
 .f-more { display: contents; }
 @media (max-width: 800px) {
   .filters { padding: 0; background: none; border: 0; }
-  .f-preset { flex: 1 1 0; width: auto; min-width: 0; }
-  .f-date { flex: 1 1 0; width: auto; min-width: 0; }
+  /* the 10rem basis pushes the date pickers onto their own row, side by side at half width */
+  .f-preset { flex: 1 1 10rem; width: auto; min-width: 0; }
+  .f-date { flex: 1 1 calc(50% - .25rem); width: auto; min-width: 0; }
   .f-search { flex-basis: 100%; }
   .f-more { display: flex; flex-direction: column; gap: .75rem; }
   .f-more > * { width: 100%; }
