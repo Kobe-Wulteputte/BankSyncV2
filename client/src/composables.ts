@@ -2,15 +2,20 @@ import { onUnmounted, ref, watch, type Ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { hasFilterQuery, useFilterStore } from '@/stores/filter'
 
-/** Follows the OS colour scheme; the ECharts theme flips with it. */
-export function useDark(): Ref<boolean> {
-  const mq = window.matchMedia('(prefers-color-scheme: dark)')
-  const dark = ref(mq.matches)
-  const handler = (e: MediaQueryListEvent) => (dark.value = e.matches)
+function useMediaQuery(query: string): Ref<boolean> {
+  const mq = window.matchMedia(query)
+  const matches = ref(mq.matches)
+  const handler = (e: MediaQueryListEvent) => (matches.value = e.matches)
   mq.addEventListener('change', handler)
   onUnmounted(() => mq.removeEventListener('change', handler))
-  return dark
+  return matches
 }
+
+/** Follows the OS colour scheme; the ECharts theme flips with it. */
+export const useDark = () => useMediaQuery('(prefers-color-scheme: dark)')
+
+/** Phone layout: cards instead of tables, bottom navigation. Keep in sync with the 800px media queries in the CSS. */
+export const useMobile = () => useMediaQuery('(max-width: 800px)')
 
 /**
  * Two-way binding between the filter store and the URL query.

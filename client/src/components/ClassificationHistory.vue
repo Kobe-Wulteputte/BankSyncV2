@@ -6,7 +6,7 @@ import Tag from 'primevue/tag'
 import { onMounted, ref } from 'vue'
 import { classifyTransaction, listClassifications } from '@/api/transactions'
 import type { ClassificationRunDto } from '@/api/types'
-import { useAsync } from '@/composables'
+import { useAsync, useMobile } from '@/composables'
 import { useLookupStore } from '@/stores/lookups'
 import { formatDateTime, formatPercent } from '@/utils/format'
 
@@ -14,6 +14,7 @@ const props = defineProps<{ transactionId: string }>()
 const emit = defineEmits<{ reclassified: [] }>()
 
 const lookups = useLookupStore()
+const mobile = useMobile()
 const { data: runs, loading, run } = useAsync(() => listClassifications(props.transactionId))
 const reclassifying = ref(false)
 
@@ -36,12 +37,34 @@ const categoryName = (id: number | null) => (id === null ? '—' : (lookups.cate
 </script>
 
 <template>
-  <div class="col gap-2" style="padding: .5rem 1rem">
+  <div class="col gap-2" :style="mobile ? undefined : 'padding: .5rem 1rem'">
     <div class="flex center between">
       <strong>Classification history</strong>
       <Button label="Re-classify" icon="pi pi-sparkles" size="small" outlined :loading="reclassifying" @click="reclassify" />
     </div>
-    <DataTable :value="runs ?? []" :loading="loading" size="small" data-key="id">
+    <div v-if="mobile" class="col gap-2">
+      <span v-if="loading" class="muted small"><i class="pi pi-spin pi-spinner" /> Loading…</span>
+      <span v-else-if="!runs?.length" class="muted small">Never classified.</span>
+      <div v-for="r in runs" :key="r.id" class="run col gap-1 small">
+        <div class="flex center between gap-2">
+          <span>
+            <i :class="r.accepted ? 'pi pi-check pos' : 'pi pi-times neg'" />
+            {{ categoryName(r.predictedCategoryId) }} <span class="muted">({{ r.predictedCategoryCode }})</span>
+          </span>
+          <span class="nowrap">
+            <Tag :value="formatPercent(r.confidence)" :severity="r.accepted ? 'success' : 'warn'" />
+            <span class="muted"> ≥ {{ formatPercent(r.threshold) }}</span>
+          </span>
+        </div>
+        <span class="muted">{{ formatDateTime(r.createdAt) }} · {{ r.trigger }} · {{ r.latencyMs }} ms</span>
+        <span class="muted" style="overflow-wrap: anywhere">{{ r.model }}</span>
+        <div v-if="r.alternatives.length" class="flex wrap gap-1">
+          <Tag v-for="alt in r.alternatives" :key="alt.code" severity="secondary" :value="`${alt.code} ${formatPercent(alt.probability)}`" />
+        </div>
+        <span v-if="r.error" class="neg">{{ r.error }}</span>
+      </div>
+    </div>
+    <DataTable v-else :value="runs ?? []" :loading="loading" size="small" data-key="id">
       <template #empty><span class="muted">Never classified.</span></template>
       <Column header="When"><template #body="{ data }">{{ formatDateTime(data.createdAt) }}</template></Column>
       <Column field="trigger" header="Trigger" />
@@ -74,3 +97,7 @@ const categoryName = (id: number | null) => (id === null ? '—' : (lookups.cate
     </DataTable>
   </div>
 </template>
+
+<style scoped>
+.run { padding: .625rem .75rem; border-radius: var(--p-content-border-radius); background: var(--p-content-hover-background); }
+</style>

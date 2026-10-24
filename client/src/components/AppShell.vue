@@ -3,14 +3,15 @@ import { useAuth0 } from '@auth0/auth0-vue'
 import Button from 'primevue/button'
 import DatePicker from 'primevue/datepicker'
 import Dialog from 'primevue/dialog'
+import Drawer from 'primevue/drawer'
 import SplitButton from 'primevue/splitbutton'
 import { useToast } from 'primevue/usetoast'
-import { onUnmounted, ref } from 'vue'
-import { RouterLink, RouterView } from 'vue-router'
+import { computed, onUnmounted, ref } from 'vue'
+import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { ApiError } from '@/api/client'
 import { getSyncStatus, startSync } from '@/api/sync'
 import type { SyncRunDto } from '@/api/types'
-import { useFilterUrlSync } from '@/composables'
+import { useFilterUrlSync, useMobile } from '@/composables'
 import { useFilterStore } from '@/stores/filter'
 import { useLookupStore } from '@/stores/lookups'
 import { toIsoDate } from '@/utils/format'
@@ -19,19 +20,27 @@ const { user, logout } = useAuth0()
 const toast = useToast()
 const filter = useFilterStore()
 const lookups = useLookupStore()
+const route = useRoute()
+const mobile = useMobile()
 useFilterUrlSync()
 void lookups.load()
 
+// `tab`: shown in the phone's bottom bar under that short label; the rest sit behind "More".
 const nav = [
-  { name: 'expenses', label: 'Expenses', icon: 'pi pi-chart-pie' },
-  { name: 'monthly', label: 'Monthly expenses', icon: 'pi pi-calendar' },
+  { name: 'expenses', label: 'Expenses', icon: 'pi pi-chart-pie', tab: 'Expenses' },
+  { name: 'monthly', label: 'Monthly expenses', icon: 'pi pi-calendar', tab: 'Monthly' },
   { name: 'income', label: 'Income', icon: 'pi pi-chart-bar' },
-  { name: 'savings', label: 'Savings', icon: 'pi pi-wallet' },
+  { name: 'savings', label: 'Savings', icon: 'pi pi-wallet', tab: 'Savings' },
   { name: 'cashflow', label: 'Cash flow', icon: 'pi pi-arrow-right-arrow-left' },
-  { name: 'transactions', label: 'Transactions', icon: 'pi pi-list' },
+  { name: 'transactions', label: 'Transactions', icon: 'pi pi-list', tab: 'Transactions' },
   { name: 'banks', label: 'Banks', icon: 'pi pi-building-columns' },
   { name: 'settings', label: 'Settings', icon: 'pi pi-cog' },
 ]
+const tabs = nav.filter((n) => n.tab)
+const moreItems = nav.filter((n) => !n.tab)
+const more = ref(false)
+const moreActive = computed(() => moreItems.some((n) => n.name === route.name))
+const navTo = (name: string) => ({ name, query: filter.toUrlQuery({ withSearch: false }) })
 
 const syncing = ref(false)
 const dataVersion = ref(0)
@@ -79,6 +88,10 @@ const fromDialog = ref(false)
 const syncFrom = ref<Date | null>(null)
 const today = new Date()
 const syncMenu = [{ label: 'Sync from date…', icon: 'pi pi-calendar', command: () => (fromDialog.value = true) }]
+function openFromDialog() {
+  more.value = false
+  fromDialog.value = true
+}
 function syncFromDate() {
   if (!syncFrom.value) return
   fromDialog.value = false
@@ -92,22 +105,21 @@ const doLogout = () => logout({ logoutParams: { returnTo: window.location.origin
 
 <template>
   <div class="shell">
-    <aside class="sidebar">
+    <aside v-if="!mobile" class="sidebar">
       <div class="brand"><i class="pi pi-sync" /> BankSync</div>
       <nav class="col gap-1">
-        <RouterLink
-          v-for="item in nav"
-          :key="item.name"
-          :to="{ name: item.name, query: filter.toUrlQuery({ withSearch: false }) }"
-          class="nav-link"
-          active-class="active"
-        >
+        <RouterLink v-for="item in nav" :key="item.name" :to="navTo(item.name)" class="nav-link" active-class="active">
           <i :class="item.icon" /> {{ item.label }}
         </RouterLink>
       </nav>
     </aside>
     <div class="col grow" style="min-width: 0">
-      <header class="topbar flex center between gap-2">
+      <header v-if="mobile" class="appbar">
+        <div class="brand"><i class="pi pi-sync" /> BankSync</div>
+        <Button :icon="`pi pi-refresh${syncing ? ' pi-spin' : ''}`" text rounded aria-label="Sync now" :disabled="syncing"
+          @click="syncNow()" />
+      </header>
+      <header v-else class="topbar flex center between gap-2">
         <span class="muted small">{{ user?.email }}</span>
         <div class="flex gap-2">
           <SplitButton label="Sync now" icon="pi pi-refresh" size="small" :model="syncMenu" :disabled="syncing" @click="syncNow()" />
@@ -126,6 +138,29 @@ const doLogout = () => logout({ logoutParams: { returnTo: window.location.origin
         <!-- Route name in the key: Income and Monthly expenses share one component that reads its kind once. -->
         <RouterView :key="`${String($route.name)}-${dataVersion}`" />
       </main>
+      <nav v-if="mobile" class="tabbar" aria-label="Main">
+        <RouterLink v-for="item in tabs" :key="item.name" :to="navTo(item.name)" class="tab" active-class="active">
+          <span class="tab-icon"><i :class="item.icon" /></span>{{ item.tab }}
+        </RouterLink>
+        <button type="button" class="tab" :class="{ active: moreActive }" aria-haspopup="dialog" @click="more = true">
+          <span class="tab-icon"><i class="pi pi-bars" /></span>More
+        </button>
+      </nav>
+      <Drawer v-if="mobile" v-model:visible="more" position="bottom" header="More" class="sheet">
+        <nav class="list">
+          <RouterLink v-for="item in moreItems" :key="item.name" :to="navTo(item.name)" class="list-item tappable"
+            active-class="active" @click="more = false">
+            <i :class="item.icon" /> {{ item.label }}
+          </RouterLink>
+          <button type="button" class="list-item tappable" :disabled="syncing" @click="openFromDialog">
+            <i class="pi pi-calendar" /> Sync from date…
+          </button>
+        </nav>
+        <div class="flex center between gap-2 mt-3">
+          <span class="muted small truncate">{{ user?.email }}</span>
+          <Button label="Logout" icon="pi pi-sign-out" severity="secondary" outlined @click="doLogout" />
+        </div>
+      </Drawer>
     </div>
   </div>
 </template>
@@ -145,9 +180,29 @@ const doLogout = () => logout({ logoutParams: { returnTo: window.location.origin
 .nav-link.active { background: var(--p-highlight-background); color: var(--p-highlight-color); }
 .topbar { padding: .6rem 1.5rem; border-bottom: 1px solid var(--p-content-border-color); background: var(--p-content-background); }
 .content { padding: 1.5rem; overflow: auto; flex: 1; }
+
+/* Phone: app bar on top, the page scrolls between it and the bottom tab bar. */
+.appbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: calc(.25rem + env(safe-area-inset-top)) .5rem .25rem 1rem;
+  background: var(--p-content-background); border-bottom: 1px solid var(--p-content-border-color);
+}
+.appbar .brand { padding: 0; }
+.tabbar {
+  display: flex; padding-bottom: env(safe-area-inset-bottom);
+  background: var(--p-content-background); border-top: 1px solid var(--p-content-border-color);
+}
+.tab {
+  flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: .2rem;
+  padding: .5rem 0 .45rem; font: inherit; font-size: .7rem; font-weight: 500;
+  color: var(--p-text-muted-color); background: none; border: 0; cursor: pointer;
+}
+.tab-icon { display: grid; place-items: center; width: 3.5rem; height: 1.9rem; border-radius: 1rem; transition: background-color .2s; }
+.tab-icon .pi { font-size: 1.1rem; }
+.tab.active { color: var(--p-highlight-color); }
+.tab.active .tab-icon { background: var(--p-highlight-background); }
 @media (max-width: 800px) {
-  .shell { flex-direction: column; }
-  .sidebar { width: auto; border-right: 0; border-bottom: 1px solid var(--p-content-border-color); }
-  .sidebar nav { flex-direction: row; flex-wrap: wrap; }
+  .shell { height: 100dvh; }
+  .content { padding: 1rem; overscroll-behavior: contain; }
 }
 </style>

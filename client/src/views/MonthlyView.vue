@@ -8,10 +8,10 @@ import { getIncome, getMonthlyExpenses } from '@/api/analytics'
 import { VChart, type EChartsOption } from '@/charts'
 import FilterBar from '@/components/FilterBar.vue'
 import StatTile from '@/components/StatTile.vue'
-import { GROUP_BY_OPTIONS, useAsync, useDark, useGroupBy } from '@/composables'
+import { GROUP_BY_OPTIONS, useAsync, useDark, useGroupBy, useMobile } from '@/composables'
 import { useFilterStore } from '@/stores/filter'
 import { useLookupStore } from '@/stores/lookups'
-import { distinctColors, formatMoney, formatMonth, UNCATEGORIZED_COLOR } from '@/utils/format'
+import { distinctColors, formatMoney, formatMoneyCompact, formatMonth, UNCATEGORIZED_COLOR } from '@/utils/format'
 
 /** One page for both directions: the income bars and the monthly expense bars share everything but data and labels. */
 const props = defineProps<{ kind: 'income' | 'expenses' }>()
@@ -21,6 +21,7 @@ const label = income ? 'income' : 'expenses'
 const filter = useFilterStore()
 const lookups = useLookupStore()
 const dark = useDark()
+const mobile = useMobile()
 const groupBy = useGroupBy(`bs2.${props.kind}.monthly.groupBy`)
 
 const { data, loading, run } = useAsync(() => (income ? getIncome : getMonthlyExpenses)(filter.apiFilter))
@@ -67,6 +68,7 @@ const option = computed<EChartsOption>(() => ({
   backgroundColor: 'transparent',
   tooltip: {
     trigger: 'axis',
+    confine: mobile.value,
     // Stacked bars report every series per month; hide the zero ones and add the month total.
     formatter: (params) => {
       const items = (Array.isArray(params) ? params : [params]) as { seriesName?: string; value?: unknown; marker?: string; axisValueLabel?: string }[]
@@ -78,9 +80,9 @@ const option = computed<EChartsOption>(() => ({
     },
   },
   legend: { type: 'scroll', bottom: 0 },
-  grid: { left: 80, right: 20, top: 20, bottom: 50 },
+  grid: mobile.value ? { left: 52, right: 8, top: 16, bottom: 50 } : { left: 80, right: 20, top: 20, bottom: 50 },
   xAxis: { type: 'category', data: months.value.map((m) => formatMonth(m.month)) },
-  yAxis: { type: 'value', axisLabel: { formatter: (v: number) => formatMoney(v) } },
+  yAxis: { type: 'value', axisLabel: { formatter: (v: number) => (mobile.value ? formatMoneyCompact(v) : formatMoney(v)) } },
   series: series.value.map((s) => ({
     type: 'bar',
     stack: label,
@@ -111,7 +113,14 @@ const option = computed<EChartsOption>(() => ({
     <VChart v-else class="chart" :option="option" :theme="dark ? 'dark' : undefined" autoresize />
   </div>
 
-  <div class="card" style="padding: 0">
+  <div v-if="mobile" class="card list">
+    <div v-if="!months.length" class="empty">{{ loading ? 'Loading…' : `No ${label} in this range` }}</div>
+    <div v-for="m in months" :key="m.month" class="list-item col" style="align-items: stretch; gap: .25rem">
+      <span class="flex between"><strong>{{ formatMonth(m.month) }}</strong><span class="amount">{{ formatMoney(m.total) }}</span></span>
+      <span class="muted small">{{ breakdown(m) }}</span>
+    </div>
+  </div>
+  <div v-else class="card" style="padding: 0">
     <DataTable :value="months" :loading="loading" size="small" data-key="month">
       <template #empty><div class="empty">No {{ label }} in this range</div></template>
       <Column header="Month"><template #body="{ data: m }">{{ formatMonth(m.month) }}</template></Column>
@@ -136,4 +145,8 @@ const option = computed<EChartsOption>(() => ({
 .chart-card { flex: 1; min-height: 24rem; position: relative; }
 .chart-card .chart { position: absolute; inset: 1rem; height: auto; width: auto; }
 .chart-card .empty { position: absolute; inset: 1rem; display: flex; align-items: center; justify-content: center; }
+@media (max-width: 800px) {
+  .chart-card { flex: none; min-height: 22rem; }
+  .chart-card .chart { inset: .5rem; }
+}
 </style>

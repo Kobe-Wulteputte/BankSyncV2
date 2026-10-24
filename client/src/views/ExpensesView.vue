@@ -12,7 +12,7 @@ import type { ExpenseCategoryRow, ExpenseClassRow } from '@/api/types'
 import { VChart, type EChartsOption } from '@/charts'
 import FilterBar from '@/components/FilterBar.vue'
 import StatTile from '@/components/StatTile.vue'
-import { GROUP_BY_OPTIONS, useAsync, useDark, useGroupBy } from '@/composables'
+import { GROUP_BY_OPTIONS, useAsync, useDark, useGroupBy, useMobile } from '@/composables'
 import { useFilterStore } from '@/stores/filter'
 import { useLookupStore } from '@/stores/lookups'
 import { monthsInRange } from '@/utils/dateRange'
@@ -23,6 +23,7 @@ const lookups = useLookupStore()
 const router = useRouter()
 const groupBy = useGroupBy('bs2.expenses.groupBy')
 const dark = useDark()
+const mobile = useMobile()
 
 const { data, loading, run } = useAsync(async () => {
   const expenses = await getExpenses(filter.apiFilter)
@@ -55,6 +56,8 @@ function openClass(row: ExpenseClassRow) {
 }
 
 const classColorOf = (r: ExpenseClassRow) => classColor({ id: r.categoryClassId, color: r.color })
+const rowColor = (r: ExpenseCategoryRow | ExpenseClassRow) =>
+  'code' in r ? categoryColor({ id: r.categoryId, color: r.color }) : classColorOf(r)
 
 const categoryOption = computed<EChartsOption>(() => ({
   backgroundColor: 'transparent',
@@ -70,6 +73,7 @@ const categoryOption = computed<EChartsOption>(() => ({
       roam: false,
       nodeClick: false,
       breadcrumb: { show: false },
+      ...(mobile.value ? { left: 0, top: 0, right: 0, bottom: 0 } : {}),
       label: { formatter: (p) => `${p.name}\n${formatMoney(p.value as number)}` },
       data: categoryRows.value.map((r) => ({
         name: r.name,
@@ -92,6 +96,7 @@ const classOption = computed<EChartsOption>(() => ({
       roam: false,
       nodeClick: false,
       breadcrumb: { show: false },
+      ...(mobile.value ? { left: 0, top: 0, right: 0, bottom: 0 } : {}),
       label: { formatter: (p) => `${p.name}
 ${formatMoney(p.value as number)}` },
       // Parent labels only render inside a border band, so the class level gets a wide border in the class colour.
@@ -156,7 +161,25 @@ function onRowClick(row: ExpenseCategoryRow | ExpenseClassRow) {
     size="small" class="mb-3" style="align-self: flex-start" />
 
   <div class="grid">
-    <div class="card" style="padding: 0">
+    <div v-if="mobile" class="card list">
+      <template v-if="loading">
+        <div v-for="i in 5" :key="i" class="list-item"><Skeleton height="2.5rem" /></div>
+      </template>
+      <div v-else-if="!rows.length" class="empty">No expenses in this range</div>
+      <template v-else>
+        <button v-for="r in rows" :key="r.name" type="button" class="list-item tappable" @click="onRowClick(r)">
+          <span class="dot" :style="{ background: rowColor(r) }" />
+          <span class="grow col gap-1" style="min-width: 0">
+            <span class="flex between gap-2"><span class="truncate">{{ r.name }}</span><span class="amount">{{ formatMoney(r.total) }}</span></span>
+            <span class="share-bar"><span :style="{ width: `${r.share * 100}%`, background: rowColor(r) }" /></span>
+            <span class="flex between muted small"><span>{{ r.count }} transactions</span><span>{{ formatPercent(r.share) }}</span></span>
+          </span>
+          <i class="pi pi-chevron-right muted small" />
+        </button>
+        <div class="list-item between"><strong>Total</strong><strong class="amount">{{ formatMoney(data?.expenses.total ?? 0) }}</strong></div>
+      </template>
+    </div>
+    <div v-else class="card" style="padding: 0">
       <DataTable :key="groupBy" :value="rows" :loading="loading" size="small" :data-key="byClass ? 'name' : 'code'" row-hover scrollable
         scroll-height="flex" selection-mode="single" @row-click="onRowClick($event.data)">
         <template #empty><div class="empty">No expenses in this range</div></template>
@@ -203,4 +226,9 @@ function onRowClick(row: ExpenseCategoryRow | ExpenseClassRow) {
   .chart-card .chart { height: 24rem; }
 }
 :deep(tr) { cursor: pointer; }
+@media (max-width: 800px) {
+  .grid { min-height: 0; gap: .75rem; }
+  .chart-card { order: -1; }
+  .chart-card .chart { flex: none; height: 18rem; min-height: 0; }
+}
 </style>

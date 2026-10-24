@@ -161,17 +161,17 @@ function expiry(c: BankConnectionDto): { text: string; warn: boolean } | null {
 
       <div v-if="c.accounts.length" class="col gap-1">
         <span class="small muted">Accounts</span>
-        <div v-for="a in c.accounts" :key="a.id" class="flex center gap-2 small">
+        <div v-for="a in c.accounts" :key="a.id" class="flex center gap-2 small account">
           <span class="muted nowrap" style="min-width: 10rem">{{ a.identifier }}</span>
           <InputText :model-value="a.displayName ?? ''" placeholder="Display name" size="small" class="grow"
             @blur="renameAccount(a, ($event.target as HTMLInputElement).value)"
             @keyup.enter="($event.target as HTMLInputElement).blur()" />
-          <span class="muted nowrap">{{ a.transactionCount }} tx</span>
+          <span class="muted nowrap tx-count">{{ a.transactionCount }} tx</span>
         </div>
       </div>
       <div v-else class="muted small">No accounts yet.</div>
 
-      <div class="flex wrap gap-2 mt-3">
+      <div class="flex wrap gap-2 mt-3 actions">
         <Button :label="c.status === 'Active' ? 'Re-authorize' : 'Authorize'" icon="pi pi-lock-open" size="small"
           :loading="busy === c.id" @click="authorize(c)" />
         <Button label="Refresh" icon="pi pi-refresh" size="small" severity="secondary" :loading="busy === c.id" @click="refresh(c)" />
@@ -186,7 +186,7 @@ function expiry(c: BankConnectionDto): { text: string; warn: boolean } | null {
     <Skeleton v-if="runsLoading" height="4rem" />
     <div v-else-if="!runs?.length" class="empty">No sync runs yet.</div>
     <div v-for="r in runs" :key="r.id" class="col gap-1 run">
-      <div class="flex center gap-2 small">
+      <div class="flex center gap-2 small run-head">
         <Tag :value="r.status" :severity="runSeverity[r.status]" />
         <span>{{ formatDateTime(r.startedAt) }}</span>
         <span class="muted">{{ r.trigger }}</span>
@@ -203,6 +203,14 @@ function expiry(c: BankConnectionDto): { text: string; warn: boolean } | null {
 </template>
 
 <style scoped>
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr)); gap: 1rem; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(24rem, 100%), 1fr)); gap: 1rem; }
 .run + .run { border-top: 1px solid var(--p-content-border-color); padding-top: .5rem; }
+@media (max-width: 800px) {
+  .account { flex-wrap: wrap; padding: .25rem 0; }
+  .account > span:first-child { min-width: 0 !important; flex: 1; }
+  .account .tx-count { order: -1; margin-left: auto; }
+  .account :deep(.p-inputtext) { flex-basis: 100%; order: 1; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .run-head { flex-wrap: wrap; }
+}
 </style>
