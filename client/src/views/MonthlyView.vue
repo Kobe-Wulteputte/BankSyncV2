@@ -5,12 +5,12 @@ import DataTable from 'primevue/datatable'
 import Row from 'primevue/row'
 import SelectButton from 'primevue/selectbutton'
 import Skeleton from 'primevue/skeleton'
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { getIncome, getMonthlyExpenses } from '@/api/analytics'
 import { VChart } from '@/charts'
 import FilterBar from '@/components/FilterBar.vue'
 import StatTile from '@/components/StatTile.vue'
-import { GROUP_BY_OPTIONS, useAsync, useDark, useGroupBy, useMobile } from '@/composables'
+import { GROUP_BY_OPTIONS, useAsync, useDark, useGroupBy, useMobile, type GroupBy } from '@/composables'
 import { useFilterStore } from '@/stores/filter'
 import { useLookupStore } from '@/stores/lookups'
 import { formatMoney, formatMonth } from '@/utils/format'
@@ -25,7 +25,8 @@ const filter = useFilterStore()
 const lookups = useLookupStore()
 const dark = useDark()
 const mobile = useMobile()
-const groupBy = useGroupBy(`bs2.${props.kind}.monthly.groupBy`)
+// Income is always split by category; only the expenses page offers the class toggle.
+const groupBy = income ? ref<GroupBy>('category') : useGroupBy(`bs2.${props.kind}.monthly.groupBy`)
 
 const { data, loading, run } = useAsync(() => (income ? getIncome : getMonthlyExpenses)(filter.apiFilter))
 onMounted(run)
@@ -54,7 +55,7 @@ const option = computed(() =>
       :sub="`over ${monthCount} month${monthCount === 1 ? '' : 's'}`" :loading="loading" />
   </div>
 
-  <SelectButton v-model="groupBy" :options="GROUP_BY_OPTIONS" option-label="label" option-value="value" :allow-empty="false"
+  <SelectButton v-if="!income" v-model="groupBy" :options="GROUP_BY_OPTIONS" option-label="label" option-value="value" :allow-empty="false"
     size="small" class="mb-3" />
 
   <div class="card chart-card mb-3">
