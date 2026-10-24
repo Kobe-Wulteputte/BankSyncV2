@@ -213,7 +213,6 @@ const sourceBadge = (t: TransactionDto) =>
               <span class="amount" :class="t.amount < 0 ? 'neg' : 'pos'">{{ formatMoney(t.amount, t.currency) }}</span>
             </div>
             <div class="muted small truncate">{{ formatDate(t.date) }} · {{ t.bankName }} {{ t.accountName }}</div>
-            <div v-if="t.description && t.counterpartyName" class="muted small clamp">{{ t.description }}</div>
           </div>
         </div>
         <div class="tx-meta">
@@ -415,7 +414,6 @@ const sourceBadge = (t: TransactionDto) =>
 .tx-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .375rem; padding: 0 1rem .75rem; }
 .tx-meta :deep(.p-tag) { font-weight: 500; }
 .cat-select { border-radius: 2rem; max-width: 100%; }
-.clamp { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .tx-details { padding: .25rem 1rem 1rem; }
 .tx-details dl { display: grid; grid-template-columns: auto 1fr; gap: .25rem .75rem; margin: 0; }
 .tx-details dd { margin: 0; overflow-wrap: anywhere; }
