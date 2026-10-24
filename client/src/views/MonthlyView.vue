@@ -63,7 +63,7 @@ const series = computed(() => {
   const colors = distinctColors(sorted, (s) => s.explicit)
   return sorted.map((s, i) => ({ name: s.name, color: colors[i]!, data: s.data }))
 })
-// Each series summed over the whole range, biggest first like the stack.
+// Each series summed over the whole range, biggest first like the stack (shown on the income page only).
 const totals = computed(() => series.value.map((s) => ({ name: s.name, color: s.color, total: s.data.reduce((a, b) => a + b, 0) })))
 
 const option = computed<EChartsOption>(() => ({
@@ -115,6 +115,8 @@ const option = computed<EChartsOption>(() => ({
     <VChart v-else class="chart" :option="option" :theme="dark ? 'dark' : undefined" autoresize />
   </div>
 
+  <!-- Income only: the expenses page already lists these totals. -->
+  <template v-if="income">
   <div v-if="mobile" class="card list">
     <div v-if="!totals.length" class="empty">{{ loading ? 'Loading…' : `No ${label} in this range` }}</div>
     <template v-else>
@@ -143,6 +145,7 @@ const option = computed<EChartsOption>(() => ({
       </ColumnGroup>
     </DataTable>
   </div>
+  </template>
   </div>
 </template>
 
