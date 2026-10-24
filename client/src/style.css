@@ -78,5 +78,8 @@ a { color: inherit; text-decoration: none; }
     width: 100% !important; max-width: 100% !important; max-height: 92dvh; margin: 0 !important;
     border-bottom-left-radius: 0; border-bottom-right-radius: 0; padding-bottom: env(safe-area-inset-bottom);
   }
+  /* dropdown panels size to their longest option (nowrap); keep them on screen and wrap long labels instead */
+  .p-select-overlay, .p-multiselect-overlay { max-width: calc(100vw - 2rem); }
+  .p-select-overlay .p-select-option, .p-multiselect-overlay .p-multiselect-option { white-space: normal; overflow-wrap: anywhere; }
   .p-toast.p-toast-bottom-right { left: .75rem; right: .75rem; width: auto; bottom: calc(5rem + env(safe-area-inset-bottom)); }
 }
