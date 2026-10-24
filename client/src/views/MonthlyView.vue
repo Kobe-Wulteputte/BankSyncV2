@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import Column from 'primevue/column'
+import ColumnGroup from 'primevue/columngroup'
 import DataTable from 'primevue/datatable'
+import Row from 'primevue/row'
 import SelectButton from 'primevue/selectbutton'
 import Skeleton from 'primevue/skeleton'
 import { computed, onMounted, watch } from 'vue'
@@ -61,8 +63,8 @@ const series = computed(() => {
   const colors = distinctColors(sorted, (s) => s.explicit)
   return sorted.map((s, i) => ({ name: s.name, color: colors[i]!, data: s.data }))
 })
-const breakdown = (m: { byCategory: { name: string; total: number }[]; byClass: { name: string; total: number }[] }) =>
-  (groupBy.value === 'class' ? m.byClass : m.byCategory).map((c) => `${c.name} ${formatMoney(c.total)}`).join(' · ')
+// Each series summed over the whole range, biggest first like the stack.
+const totals = computed(() => series.value.map((s) => ({ name: s.name, color: s.color, total: s.data.reduce((a, b) => a + b, 0) })))
 
 const option = computed<EChartsOption>(() => ({
   backgroundColor: 'transparent',
@@ -114,31 +116,38 @@ const option = computed<EChartsOption>(() => ({
   </div>
 
   <div v-if="mobile" class="card list">
-    <div v-if="!months.length" class="empty">{{ loading ? 'Loading…' : `No ${label} in this range` }}</div>
-    <div v-for="m in months" :key="m.month" class="list-item col" style="align-items: stretch; gap: .25rem">
-      <span class="flex between"><strong>{{ formatMonth(m.month) }}</strong><span class="amount">{{ formatMoney(m.total) }}</span></span>
-      <span class="muted small">{{ breakdown(m) }}</span>
-    </div>
+    <div v-if="!totals.length" class="empty">{{ loading ? 'Loading…' : `No ${label} in this range` }}</div>
+    <template v-else>
+      <div v-for="t in totals" :key="t.name" class="list-item">
+        <span class="dot" :style="{ background: t.color }" />
+        <span class="grow truncate">{{ t.name }}</span>
+        <span class="amount">{{ formatMoney(t.total) }}</span>
+      </div>
+      <div class="list-item between"><strong>Total</strong><strong class="amount">{{ formatMoney(data?.total ?? 0) }}</strong></div>
+    </template>
   </div>
   <div v-else class="card" style="padding: 0">
-    <DataTable :value="months" :loading="loading" size="small" data-key="month">
+    <DataTable :value="totals" :loading="loading" size="small" data-key="name">
       <template #empty><div class="empty">No {{ label }} in this range</div></template>
-      <Column header="Month"><template #body="{ data: m }">{{ formatMonth(m.month) }}</template></Column>
+      <Column :header="groupBy === 'class' ? 'Class' : 'Category'">
+        <template #body="{ data: t }"><span class="dot" :style="{ background: t.color }" />{{ t.name }}</template>
+      </Column>
       <Column header="Total" body-class="right" header-class="right">
-        <template #body="{ data: m }">{{ formatMoney(m.total) }}</template>
+        <template #body="{ data: t }">{{ formatMoney(t.total) }}</template>
       </Column>
-      <Column header="Breakdown">
-        <template #body="{ data: m }">
-          <span class="muted small">{{ breakdown(m) }}</span>
-        </template>
-      </Column>
+      <ColumnGroup type="footer">
+        <Row>
+          <Column footer="Total" />
+          <Column :footer="formatMoney(data?.total ?? 0)" footer-class="right" />
+        </Row>
+      </ColumnGroup>
     </DataTable>
   </div>
   </div>
 </template>
 
 <style scoped>
-/* Chart grows to fill the viewport below the tiles; the month table sits under it and scrolls into view. */
+/* Chart grows to fill the viewport below the tiles; the totals table sits under it and scrolls into view. */
 .page { display: flex; flex-direction: column; min-height: 100%; }
 /* The card's height comes from flex (not definite for its children), so the chart is absolutely
    positioned to fill it instead of relying on a percentage or flex height, which resolves to 0. */
