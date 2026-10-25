@@ -93,11 +93,22 @@ async function patch(id: string, body: PatchTransactionBody) {
     run() // revert the optimistic control state
   }
 }
-async function confirm(id: string) {
+// Optimistic: a confirmed row no longer matches "unclassified or unconfirmed", so it leaves the list at once.
+async function confirm(t: TransactionDto) {
+  const list = data.value
+  if (list && unclassifiedOnly.value) {
+    list.items = list.items.filter((r) => r.id !== t.id)
+    list.total--
+    list.sumAmount -= t.amount
+    selection.value = selection.value.filter((r) => r.id !== t.id)
+  } else {
+    replaceRow({ ...t, classificationSource: 'Manual' })
+  }
   try {
-    replaceRow(await confirmTransaction(id))
+    const row = await confirmTransaction(t.id)
+    if (!unclassifiedOnly.value) replaceRow(row)
   } catch {
-    // toasted
+    run() // toasted; reload to undo the optimistic change
   }
 }
 const txDialog = ref(false)
@@ -237,7 +248,7 @@ const groupDialog = ref(false)
             </template>
           </Select>
           <Button v-if="t.classificationSource === 'Ai'" icon="pi pi-check" label="Confirm" severity="success" outlined size="small"
-            @click="confirm(t.id)" />
+            @click="confirm(t)" />
           <Tag v-for="g in t.groupIds" :key="g" severity="secondary"><span class="dot" :style="{ background: groupColor(g) }" />{{ groupName(g) }}</Tag>
           <Tag v-if="suggestedGroup(t)" severity="info" icon="pi pi-plus" :value="`${groupName(suggestedGroup(t)!)}?`" style="cursor: pointer"
             @click.stop="addSuggestedGroup(t)" />
@@ -372,7 +383,7 @@ const groupDialog = ref(false)
               </template>
             </Select>
             <Button v-if="t.classificationSource === 'Ai'" icon="pi pi-check" severity="success" text rounded size="small"
-              aria-label="Confirm category" v-tooltip.top="'Confirm AI category'" @click="confirm(t.id)" />
+              aria-label="Confirm category" v-tooltip.top="'Confirm AI category'" @click="confirm(t)" />
           </div>
         </template>
       </Column>
