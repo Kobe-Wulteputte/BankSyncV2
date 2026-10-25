@@ -13,7 +13,7 @@ import ToggleSwitch from 'primevue/toggleswitch'
 import { useToast } from 'primevue/usetoast'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { bulkUpdateTransactions, getTransaction, listTransactions, patchTransaction } from '@/api/transactions'
+import { bulkUpdateTransactions, confirmTransaction, getTransaction, listTransactions, patchTransaction } from '@/api/transactions'
 import type { PatchTransactionBody, TransactionDto, TransactionPage, TransactionSort } from '@/api/types'
 import ClassificationHistory from '@/components/ClassificationHistory.vue'
 import FilterBar from '@/components/FilterBar.vue'
@@ -22,7 +22,7 @@ import TransactionDialog from '@/components/TransactionDialog.vue'
 import { useAsync, useMobile } from '@/composables'
 import { useFilterStore } from '@/stores/filter'
 import { useLookupStore } from '@/stores/lookups'
-import { categoryColor, formatDate, formatMoney, formatPercent } from '@/utils/format'
+import { categoryColor, formatDate, formatMoney } from '@/utils/format'
 
 const filter = useFilterStore()
 const lookups = useLookupStore()
@@ -91,6 +91,13 @@ async function patch(id: string, body: PatchTransactionBody) {
     replaceRow(await patchTransaction(id, body))
   } catch {
     run() // revert the optimistic control state
+  }
+}
+async function confirm(id: string) {
+  try {
+    replaceRow(await confirmTransaction(id))
+  } catch {
+    // toasted
   }
 }
 const txDialog = ref(false)
@@ -171,12 +178,6 @@ function suggestedGroup(t: TransactionDto) {
 const addSuggestedGroup = (t: TransactionDto) => patch(t.id, { groupIds: [...t.groupIds, suggestedGroup(t)!] })
 
 const groupDialog = ref(false)
-
-const sourceBadge = (t: TransactionDto) =>
-  t.classificationSource === 'Ai' ? { label: 'AI', severity: 'info' as const }
-  : t.classificationSource === 'Manual' ? { label: 'manual', severity: 'secondary' as const }
-  : t.classificationSource === 'Import' ? { label: 'import', severity: 'contrast' as const }
-  : null
 </script>
 
 <template>
@@ -191,7 +192,7 @@ const sourceBadge = (t: TransactionDto) =>
         :outlined="!selecting" @click="selecting = !selecting" />
     </div>
     <div class="flex wrap center gap-2 mb-3">
-      <label class="flex center gap-2 small nowrap"><ToggleSwitch v-model="unclassifiedOnly" /> Unclassified only</label>
+      <label class="flex center gap-2 small nowrap"><ToggleSwitch v-model="unclassifiedOnly" /> Unclassified or unconfirmed</label>
       <Tag v-for="id in categoryIds" :key="id" severity="info" class="flex center gap-1">
         Category: {{ categoryLabel(id) }}
         <button type="button" class="tag-x" aria-label="Clear category filter" @click="clearCategoryIds"><i class="pi pi-times" /></button>
@@ -235,9 +236,8 @@ const sourceBadge = (t: TransactionDto) =>
               <span class="dot" :style="{ background: categoryColor(option) }" />{{ option.name }}
             </template>
           </Select>
-          <Tag v-if="sourceBadge(t)" :value="sourceBadge(t)!.label" :severity="sourceBadge(t)!.severity" />
-          <Tag v-if="t.latestClassification" :value="formatPercent(t.latestClassification.confidence)"
-            :severity="t.latestClassification.accepted ? 'success' : 'warn'" />
+          <Button v-if="t.classificationSource === 'Ai'" icon="pi pi-check" label="Confirm" severity="success" outlined size="small"
+            @click="confirm(t.id)" />
           <Tag v-for="g in t.groupIds" :key="g" severity="secondary"><span class="dot" :style="{ background: groupColor(g) }" />{{ groupName(g) }}</Tag>
           <Tag v-if="suggestedGroup(t)" severity="info" icon="pi pi-plus" :value="`${groupName(suggestedGroup(t)!)}?`" style="cursor: pointer"
             @click.stop="addSuggestedGroup(t)" />
@@ -289,7 +289,7 @@ const sourceBadge = (t: TransactionDto) =>
 
   <template v-else>
   <div class="card flex wrap center gap-3 mb-3">
-    <label class="flex center gap-2 small nowrap"><ToggleSwitch v-model="unclassifiedOnly" /> Unclassified only</label>
+    <label class="flex center gap-2 small nowrap"><ToggleSwitch v-model="unclassifiedOnly" /> Unclassified or unconfirmed</label>
     <Tag v-for="id in categoryIds" :key="id" severity="info" class="flex center gap-1">
       Category: {{ categoryLabel(id) }}
       <i class="pi pi-times" style="cursor: pointer; font-size: .7rem" @click="clearCategoryIds" />
@@ -371,9 +371,8 @@ const sourceBadge = (t: TransactionDto) =>
                 <span class="dot" :style="{ background: categoryColor(option) }" />{{ option.name }}
               </template>
             </Select>
-            <Tag v-if="sourceBadge(t)" :value="sourceBadge(t)!.label" :severity="sourceBadge(t)!.severity" />
-            <Tag v-if="t.latestClassification" :value="formatPercent(t.latestClassification.confidence)"
-              :severity="t.latestClassification.accepted ? 'success' : 'warn'" v-tooltip.top="'AI confidence'" />
+            <Button v-if="t.classificationSource === 'Ai'" icon="pi pi-check" severity="success" text rounded size="small"
+              aria-label="Confirm category" v-tooltip.top="'Confirm AI category'" @click="confirm(t.id)" />
           </div>
         </template>
       </Column>

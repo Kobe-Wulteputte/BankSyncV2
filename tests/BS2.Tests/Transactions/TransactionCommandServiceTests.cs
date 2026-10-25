@@ -88,6 +88,23 @@ public class TransactionCommandServiceTests
     }
 
     [Fact]
+    public async Task Confirm_turns_ai_label_manual_and_drops_it_from_unclassified()
+    {
+        var (db, tx, _, _) = await Seed();
+        await using var _ = db;
+        var queries = new TransactionQueryService(db, new StaticCurrentUser(TestDb.UserId));
+
+        Assert.Equal(1, (await queries.ListAsync(new TransactionFilter(), unclassifiedOnly: true, 1, 50, null, null)).Total);
+
+        var dto = await Service(db).ConfirmAsync(tx.Id);
+
+        Assert.Equal(1, dto.CategoryId);
+        Assert.Equal(ClassificationSource.Manual, dto.ClassificationSource);
+        Assert.Equal(Now.AddDays(-1), dto.ClassifiedAt);
+        Assert.Equal(0, (await queries.ListAsync(new TransactionFilter(), unclassifiedOnly: true, 1, 50, null, null)).Total);
+    }
+
+    [Fact]
     public async Task Patch_with_null_category_clears_it()
     {
         var (db, tx, _, _) = await Seed();
