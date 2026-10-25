@@ -68,8 +68,14 @@ export function toYears(months: MonthlyMonth[], years: string[]): MonthlyMonth[]
   })
 }
 
-/** Stacked bar chart: x = periods, one bar segment per series; the tooltip lists the non-zero ones and their total. */
-export function stackedBarOption(o: { labels: string[]; series: BarSeries[]; stack: string; mobile: boolean }): EChartsOption {
+/**
+ * Stacked bar chart: one bar per period, one segment per series; the tooltip lists the non-zero ones and their total.
+ * `horizontal` puts the periods on the y axis (first on top) and the amounts on the x axis.
+ */
+export function stackedBarOption(o: { labels: string[]; series: BarSeries[]; stack: string; mobile: boolean; horizontal?: boolean }): EChartsOption {
+  const periodAxis = { type: 'category' as const, data: o.labels }
+  // Full amounts crowd a horizontal value axis, so it always uses the compact form.
+  const valueAxis = { type: 'value' as const, axisLabel: { formatter: (v: number) => (o.mobile || o.horizontal ? formatMoneyCompact(v) : formatMoney(v)) } }
   return {
     backgroundColor: 'transparent',
     tooltip: {
@@ -86,9 +92,11 @@ export function stackedBarOption(o: { labels: string[]; series: BarSeries[]; sta
       },
     },
     legend: { type: 'scroll', bottom: 0 },
-    grid: o.mobile ? { left: 52, right: 8, top: 16, bottom: 50 } : { left: 80, right: 20, top: 20, bottom: 50 },
-    xAxis: { type: 'category', data: o.labels },
-    yAxis: { type: 'value', axisLabel: { formatter: (v: number) => (o.mobile ? formatMoneyCompact(v) : formatMoney(v)) } },
+    grid: o.horizontal
+      ? { left: 48, right: o.mobile ? 16 : 24, top: 16, bottom: 60 }
+      : o.mobile ? { left: 52, right: 8, top: 16, bottom: 50 } : { left: 80, right: 20, top: 20, bottom: 50 },
+    xAxis: o.horizontal ? valueAxis : periodAxis,
+    yAxis: o.horizontal ? { ...periodAxis, inverse: true } : valueAxis,
     series: o.series.map((s) => ({ type: 'bar', stack: o.stack, name: s.name, data: s.data, itemStyle: { color: s.color } })),
   }
 }

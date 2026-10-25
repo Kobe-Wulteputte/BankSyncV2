@@ -38,7 +38,7 @@ const charts = computed(() =>
       kind,
       title: kind === 'income' ? 'Income' : 'Expenses',
       empty: !series.length,
-      option: stackedBarOption({ labels: years.value, series, stack: kind, mobile: mobile.value }),
+      option: stackedBarOption({ labels: years.value, series, stack: kind, mobile: mobile.value, horizontal: true }),
     }
   }),
 )
