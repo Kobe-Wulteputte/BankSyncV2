@@ -7,12 +7,13 @@ import { getSavings } from '@/api/analytics'
 import { VChart, type EChartsOption } from '@/charts'
 import FilterBar from '@/components/FilterBar.vue'
 import StatTile from '@/components/StatTile.vue'
-import { useAsync, useDark } from '@/composables'
+import { useAsync, useDark, useMobile } from '@/composables'
 import { useFilterStore } from '@/stores/filter'
-import { formatMoney, formatMonth, formatPercent } from '@/utils/format'
+import { formatMoney, formatMoneyCompact, formatMonth, formatPercent } from '@/utils/format'
 
 const filter = useFilterStore()
 const dark = useDark()
+const mobile = useMobile()
 
 const { data, loading, run } = useAsync(() => getSavings(filter.apiFilter))
 onMounted(run)
@@ -23,11 +24,11 @@ const rate = computed(() => (data.value && data.value.totalIncome > 0 ? data.val
 
 const option = computed<EChartsOption>(() => ({
   backgroundColor: 'transparent',
-  tooltip: { trigger: 'axis', valueFormatter: (v) => formatMoney(Number(v)) },
-  legend: { bottom: 0 },
-  grid: { left: 80, right: 20, top: 20, bottom: 50 },
+  tooltip: { trigger: 'axis', confine: mobile.value, valueFormatter: (v) => formatMoney(Number(v)) },
+  legend: { bottom: 0, type: mobile.value ? 'scroll' : 'plain' },
+  grid: mobile.value ? { left: 52, right: 8, top: 16, bottom: 50 } : { left: 80, right: 20, top: 20, bottom: 50 },
   xAxis: { type: 'category', data: months.value.map((m) => formatMonth(m.month)) },
-  yAxis: { type: 'value', axisLabel: { formatter: (v: number) => formatMoney(v) } },
+  yAxis: { type: 'value', axisLabel: { formatter: (v: number) => (mobile.value ? formatMoneyCompact(v) : formatMoney(v)) } },
   series: [
     { type: 'bar', name: 'Income', stack: 'flow', data: months.value.map((m) => m.income), itemStyle: { color: '#59a14f' } },
     { type: 'bar', name: 'Expenses', stack: 'flow', data: months.value.map((m) => -m.expenses), itemStyle: { color: '#e15759' } },
@@ -57,7 +58,18 @@ const tone = (v: number) => (v < 0 ? 'neg' : 'pos')
     <VChart v-else class="chart" :option="option" :theme="dark ? 'dark' : undefined" autoresize />
   </div>
 
-  <div class="card" style="padding: 0">
+  <div v-if="mobile" class="card list">
+    <div v-if="!months.length" class="empty">{{ loading ? 'Loading…' : 'No data in this range' }}</div>
+    <div v-for="m in months" :key="m.month" class="list-item col" style="align-items: stretch; gap: .375rem">
+      <span class="flex between"><strong>{{ formatMonth(m.month) }}</strong><span class="amount" :class="tone(m.savings)">{{ formatMoney(m.savings) }}</span></span>
+      <dl class="kv">
+        <div><dt>Income</dt><dd>{{ formatMoney(m.income) }}</dd></div>
+        <div><dt>Expenses</dt><dd>{{ formatMoney(m.expenses) }}</dd></div>
+        <div><dt>Cumulative</dt><dd :class="tone(m.cumulative)">{{ formatMoney(m.cumulative) }}</dd></div>
+      </dl>
+    </div>
+  </div>
+  <div v-else class="card" style="padding: 0">
     <DataTable :value="months" :loading="loading" size="small" data-key="month">
       <template #empty><div class="empty">No data in this range</div></template>
       <Column header="Month"><template #body="{ data: m }">{{ formatMonth(m.month) }}</template></Column>
@@ -82,4 +94,8 @@ const tone = (v: number) => (v < 0 ? 'neg' : 'pos')
 .chart-card { flex: 1; min-height: 24rem; position: relative; }
 .chart-card .chart { position: absolute; inset: 1rem; height: auto; width: auto; }
 .chart-card .empty { position: absolute; inset: 1rem; display: flex; align-items: center; justify-content: center; }
+@media (max-width: 800px) {
+  .chart-card { flex: none; min-height: 22rem; }
+  .chart-card .chart { inset: .5rem; }
+}
 </style>

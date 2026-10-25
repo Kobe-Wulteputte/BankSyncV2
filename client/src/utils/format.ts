@@ -9,6 +9,7 @@ const dateTimeFormat = new Intl.DateTimeFormat('nl-BE', {
 })
 const monthFormat = new Intl.DateTimeFormat('nl-BE', { month: 'short', year: 'numeric' })
 const percentFormat = new Intl.NumberFormat('nl-BE', { style: 'percent', maximumFractionDigits: 1 })
+const compactMoneyFormat = new Intl.NumberFormat('nl-BE', { style: 'currency', currency: 'EUR', notation: 'compact', maximumFractionDigits: 1 })
 
 export function formatMoney(amount: number, currency = 'EUR'): string {
   let f = moneyFormats.get(currency)
@@ -17,6 +18,11 @@ export function formatMoney(amount: number, currency = 'EUR'): string {
     moneyFormats.set(currency, f)
   }
   return f.format(amount)
+}
+
+/** 1234.5 -> '€ 1,2K'; chart axes on a phone */
+export function formatMoneyCompact(amount: number): string {
+  return compactMoneyFormat.format(amount)
 }
 
 /** 'YYYY-MM-DD' -> local Date (avoids the UTC shift of `new Date('YYYY-MM-DD')`). */

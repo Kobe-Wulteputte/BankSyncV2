@@ -147,6 +147,7 @@ const option = computed<EChartsOption>(() => {
       <StatTile label="Savings rate" :value="formatPercent(rate)" :loading="loading" />
     </div>
 
+    <p class="swipe-hint muted small"><i class="pi pi-arrows-h" /> Swipe sideways to follow the flow</p>
     <div class="card chart-card">
       <Skeleton v-if="loading" class="chart" />
       <div v-else-if="!hasData" class="empty">No transactions in this range</div>
@@ -159,4 +160,12 @@ const option = computed<EChartsOption>(() => {
 .page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .chart-card { flex: 1; min-height: 24rem; display: flex; flex-direction: column; }
 .chart-card .chart { flex: 1; height: auto; min-height: 20rem; }
+.swipe-hint { display: none; }
+/* Five sankey columns do not fit a phone: keep the desktop proportions and let the card scroll sideways. */
+@media (max-width: 800px) {
+  .page { height: auto; }
+  .swipe-hint { display: block; margin: 0 0 .5rem; }
+  .chart-card { flex: none; overflow-x: auto; overscroll-behavior-x: contain; }
+  .chart-card .chart { flex: none; width: 52rem; height: 32rem; }
+}
 </style>

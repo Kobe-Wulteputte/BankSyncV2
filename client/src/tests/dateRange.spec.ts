@@ -17,6 +17,10 @@ describe('presetRange', () => {
     expect(presetRange('last3Months', now)).toEqual({ from: '2026-01-01', to: '2026-03-31' })
     expect(presetRange('last6Months', now)).toEqual({ from: '2025-10-01', to: '2026-03-31' })
   })
+  it('last 3 / 5 years are whole calendar years ending this year', () => {
+    expect(presetRange('last3Years', now)).toEqual({ from: '2024-01-01', to: '2026-12-31' })
+    expect(presetRange('last5Years', now)).toEqual({ from: '2022-01-01', to: '2026-12-31' })
+  })
   it('crosses the year boundary for last month in January', () => {
     expect(presetRange('lastMonth', new Date(2026, 0, 10))).toEqual({ from: '2025-12-01', to: '2025-12-31' })
   })
@@ -28,7 +32,7 @@ describe('presetRange', () => {
 
 describe('detectPreset', () => {
   it('round-trips every closed preset', () => {
-    for (const p of ['thisMonth', 'lastMonth', 'thisYear', 'lastYear', 'last3Months', 'last6Months', 'last12Months'] as const) {
+    for (const p of ['thisMonth', 'lastMonth', 'thisYear', 'lastYear', 'last3Months', 'last6Months', 'last12Months', 'last3Years', 'last5Years'] as const) {
       expect(detectPreset(presetRange(p, now), now)).toBe(p)
     }
   })

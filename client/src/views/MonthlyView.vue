@@ -1,17 +1,20 @@
 <script setup lang="ts">
 import Column from 'primevue/column'
+import ColumnGroup from 'primevue/columngroup'
 import DataTable from 'primevue/datatable'
+import Row from 'primevue/row'
 import SelectButton from 'primevue/selectbutton'
 import Skeleton from 'primevue/skeleton'
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { getIncome, getMonthlyExpenses } from '@/api/analytics'
-import { VChart, type EChartsOption } from '@/charts'
+import { VChart } from '@/charts'
 import FilterBar from '@/components/FilterBar.vue'
 import StatTile from '@/components/StatTile.vue'
-import { GROUP_BY_OPTIONS, useAsync, useDark, useGroupBy } from '@/composables'
+import { GROUP_BY_OPTIONS, useAsync, useDark, useGroupBy, useMobile, type GroupBy } from '@/composables'
 import { useFilterStore } from '@/stores/filter'
 import { useLookupStore } from '@/stores/lookups'
-import { distinctColors, formatMoney, formatMonth, UNCATEGORIZED_COLOR } from '@/utils/format'
+import { formatMoney, formatMonth } from '@/utils/format'
+import { buildSeries, stackedBarOption } from '@/utils/stackedBars'
 
 /** One page for both directions: the income bars and the monthly expense bars share everything but data and labels. */
 const props = defineProps<{ kind: 'income' | 'expenses' }>()
@@ -21,7 +24,9 @@ const label = income ? 'income' : 'expenses'
 const filter = useFilterStore()
 const lookups = useLookupStore()
 const dark = useDark()
-const groupBy = useGroupBy(`bs2.${props.kind}.monthly.groupBy`)
+const mobile = useMobile()
+// Income is always split by category; only the expenses page offers the class toggle.
+const groupBy = income ? ref<GroupBy>('category') : useGroupBy(`bs2.${props.kind}.monthly.groupBy`)
 
 const { data, loading, run } = useAsync(() => (income ? getIncome : getMonthlyExpenses)(filter.apiFilter))
 onMounted(run)
@@ -30,65 +35,13 @@ watch(() => filter.apiFilter, run, { deep: true })
 const months = computed(() => data.value?.months ?? [])
 const monthCount = computed(() => Math.max(1, months.value.length))
 
-// One stacked series per category (or per class), zero-filled per month.
-const series = computed(() => {
-  const byKey = new Map<string, { name: string; explicit: string | null; data: number[] }>()
-  const add = (key: string, name: string, explicit: string | null, i: number, total: number) => {
-    let s = byKey.get(key)
-    if (!s) {
-      s = { name, explicit, data: new Array<number>(months.value.length).fill(0) }
-      byKey.set(key, s)
-    }
-    s.data[i] = total
-  }
-  months.value.forEach((m, i) => {
-    if (groupBy.value === 'class') {
-      for (const c of m.byClass) {
-        const explicit = c.categoryClassId === null ? UNCATEGORIZED_COLOR : (lookups.classById.get(c.categoryClassId)?.color ?? null)
-        add(String(c.categoryClassId), c.name, explicit, i, c.total)
-      }
-    } else {
-      for (const c of m.byCategory) {
-        const explicit = c.categoryId === null ? UNCATEGORIZED_COLOR : (lookups.categoryById.get(c.categoryId)?.color ?? null)
-        add(c.code, c.name, explicit, i, c.total)
-      }
-    }
-  })
-  // Biggest series first, then colours by rank: a category with a colour set in Settings keeps it,
-  // everything else gets the most distinct remaining hue.
-  const sorted = [...byKey.values()].sort((a, b) => b.data.reduce((x, y) => x + y, 0) - a.data.reduce((x, y) => x + y, 0))
-  const colors = distinctColors(sorted, (s) => s.explicit)
-  return sorted.map((s, i) => ({ name: s.name, color: colors[i]!, data: s.data }))
-})
-const breakdown = (m: { byCategory: { name: string; total: number }[]; byClass: { name: string; total: number }[] }) =>
-  (groupBy.value === 'class' ? m.byClass : m.byCategory).map((c) => `${c.name} ${formatMoney(c.total)}`).join(' · ')
+const series = computed(() => buildSeries(months.value, groupBy.value, lookups.categoryById, lookups.classById))
+// Each series summed over the whole range, biggest first like the stack (shown on the income page only).
+const totals = computed(() => series.value.map((s) => ({ name: s.name, color: s.color, total: s.data.reduce((a, b) => a + b, 0) })))
 
-const option = computed<EChartsOption>(() => ({
-  backgroundColor: 'transparent',
-  tooltip: {
-    trigger: 'axis',
-    // Stacked bars report every series per month; hide the zero ones and add the month total.
-    formatter: (params) => {
-      const items = (Array.isArray(params) ? params : [params]) as { seriesName?: string; value?: unknown; marker?: string; axisValueLabel?: string }[]
-      const rows = items.filter((p) => Number(p.value) !== 0)
-      if (!rows.length) return ''
-      const total = rows.reduce((sum, p) => sum + Number(p.value), 0)
-      const lines = rows.map((p) => `${p.marker ?? ''}${p.seriesName} <span style="float:right;margin-left:1.5rem">${formatMoney(Number(p.value))}</span>`)
-      return `<b>${rows[0]?.axisValueLabel ?? ''}</b><br/>${lines.join('<br/>')}<br/><b>Total <span style="float:right;margin-left:1.5rem">${formatMoney(total)}</span></b>`
-    },
-  },
-  legend: { type: 'scroll', bottom: 0 },
-  grid: { left: 80, right: 20, top: 20, bottom: 50 },
-  xAxis: { type: 'category', data: months.value.map((m) => formatMonth(m.month)) },
-  yAxis: { type: 'value', axisLabel: { formatter: (v: number) => formatMoney(v) } },
-  series: series.value.map((s) => ({
-    type: 'bar',
-    stack: label,
-    name: s.name,
-    data: s.data,
-    itemStyle: { color: s.color },
-  })),
-}))
+const option = computed(() =>
+  stackedBarOption({ labels: months.value.map((m) => formatMonth(m.month)), series: series.value, stack: label, mobile: mobile.value }),
+)
 </script>
 
 <template>
@@ -102,7 +55,7 @@ const option = computed<EChartsOption>(() => ({
       :sub="`over ${monthCount} month${monthCount === 1 ? '' : 's'}`" :loading="loading" />
   </div>
 
-  <SelectButton v-model="groupBy" :options="GROUP_BY_OPTIONS" option-label="label" option-value="value" :allow-empty="false"
+  <SelectButton v-if="!income" v-model="groupBy" :options="GROUP_BY_OPTIONS" option-label="label" option-value="value" :allow-empty="false"
     size="small" class="mb-3" />
 
   <div class="card chart-card mb-3">
@@ -111,29 +64,50 @@ const option = computed<EChartsOption>(() => ({
     <VChart v-else class="chart" :option="option" :theme="dark ? 'dark' : undefined" autoresize />
   </div>
 
-  <div class="card" style="padding: 0">
-    <DataTable :value="months" :loading="loading" size="small" data-key="month">
+  <!-- Income only: the expenses page already lists these totals. -->
+  <template v-if="income">
+  <div v-if="mobile" class="card list">
+    <div v-if="!totals.length" class="empty">{{ loading ? 'Loading…' : `No ${label} in this range` }}</div>
+    <template v-else>
+      <div v-for="t in totals" :key="t.name" class="list-item">
+        <span class="dot" :style="{ background: t.color }" />
+        <span class="grow truncate">{{ t.name }}</span>
+        <span class="amount">{{ formatMoney(t.total) }}</span>
+      </div>
+      <div class="list-item between"><strong>Total</strong><strong class="amount">{{ formatMoney(data?.total ?? 0) }}</strong></div>
+    </template>
+  </div>
+  <div v-else class="card" style="padding: 0">
+    <DataTable :value="totals" :loading="loading" size="small" data-key="name">
       <template #empty><div class="empty">No {{ label }} in this range</div></template>
-      <Column header="Month"><template #body="{ data: m }">{{ formatMonth(m.month) }}</template></Column>
+      <Column :header="groupBy === 'class' ? 'Class' : 'Category'">
+        <template #body="{ data: t }"><span class="dot" :style="{ background: t.color }" />{{ t.name }}</template>
+      </Column>
       <Column header="Total" body-class="right" header-class="right">
-        <template #body="{ data: m }">{{ formatMoney(m.total) }}</template>
+        <template #body="{ data: t }">{{ formatMoney(t.total) }}</template>
       </Column>
-      <Column header="Breakdown">
-        <template #body="{ data: m }">
-          <span class="muted small">{{ breakdown(m) }}</span>
-        </template>
-      </Column>
+      <ColumnGroup type="footer">
+        <Row>
+          <Column footer="Total" />
+          <Column :footer="formatMoney(data?.total ?? 0)" footer-class="right" />
+        </Row>
+      </ColumnGroup>
     </DataTable>
   </div>
+  </template>
   </div>
 </template>
 
 <style scoped>
-/* Chart grows to fill the viewport below the tiles; the month table sits under it and scrolls into view. */
+/* Chart grows to fill the viewport below the tiles; the totals table sits under it and scrolls into view. */
 .page { display: flex; flex-direction: column; min-height: 100%; }
 /* The card's height comes from flex (not definite for its children), so the chart is absolutely
    positioned to fill it instead of relying on a percentage or flex height, which resolves to 0. */
 .chart-card { flex: 1; min-height: 24rem; position: relative; }
 .chart-card .chart { position: absolute; inset: 1rem; height: auto; width: auto; }
 .chart-card .empty { position: absolute; inset: 1rem; display: flex; align-items: center; justify-content: center; }
+@media (max-width: 800px) {
+  .chart-card { flex: none; min-height: 22rem; }
+  .chart-card .chart { inset: .5rem; }
+}
 </style>

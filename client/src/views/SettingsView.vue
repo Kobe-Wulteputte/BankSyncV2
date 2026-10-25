@@ -12,6 +12,7 @@ import Tag from 'primevue/tag'
 import ToggleSwitch from 'primevue/toggleswitch'
 import { useConfirm } from 'primevue/useconfirm'
 import { computed, onMounted, ref } from 'vue'
+import { useMobile } from '@/composables'
 import { createCategory, updateCategory } from '@/api/categories'
 import { createCategoryClass, removeCategoryClass, updateCategoryClass } from '@/api/categoryClasses'
 import { deleteGroup } from '@/api/groups'
@@ -24,6 +25,7 @@ import { categoryColor, classColor } from '@/utils/format'
 
 const lookups = useLookupStore()
 const confirm = useConfirm()
+const mobile = useMobile()
 const KINDS: CategoryKind[] = ['Expense', 'Income', 'Transfer']
 
 // categories
@@ -77,6 +79,9 @@ async function setCategoryClass(c: CategoryDto, categoryClassId: number | null) 
 
 // category classes
 const classOptions = computed(() => [{ id: null as number | null, name: 'None' }, ...lookups.classes])
+const sortedClasses = computed(() => [...lookups.classes].sort((a, b) => a.sortOrder - b.sortOrder))
+const sortedCategories = computed(() => [...lookups.categories].sort((a, b) => a.sortOrder - b.sortOrder))
+const kindSeverity = (k: CategoryKind) => (k === 'Income' ? 'success' : k === 'Transfer' ? 'secondary' : 'danger')
 const classDialog = ref(false)
 const editingClass = ref<CategoryClassDto | null>(null)
 const classForm = ref({ name: '', color: null as string | null, sortOrder: 0 })
@@ -192,7 +197,21 @@ async function upload(e: FileUploadUploaderEvent) {
       <h2 style="margin: 0; font-size: 1.1rem">Category classes</h2>
       <Button v-if="isAdmin" label="New class" icon="pi pi-plus" size="small" @click="openClass(null)" />
     </div>
-    <DataTable :value="lookups.classes" size="small" data-key="id" sort-field="sortOrder" :sort-order="1">
+    <div v-if="mobile" class="list">
+      <div v-if="!sortedClasses.length" class="empty">No classes.</div>
+      <div v-for="c in sortedClasses" :key="c.id" class="list-item">
+        <span class="dot" :style="{ background: classColor(c) }" />
+        <span class="grow col" style="min-width: 0">
+          <span class="truncate">{{ c.name }}</span>
+          <span class="muted small">{{ c.categoryCount }} categor{{ c.categoryCount === 1 ? 'y' : 'ies' }}</span>
+        </span>
+        <template v-if="isAdmin">
+          <Button icon="pi pi-pencil" text rounded aria-label="Edit class" @click="openClass(c)" />
+          <Button icon="pi pi-trash" text rounded severity="danger" aria-label="Delete class" @click="removeClass(c)" />
+        </template>
+      </div>
+    </div>
+    <DataTable v-else :value="lookups.classes" size="small" data-key="id" sort-field="sortOrder" :sort-order="1">
       <template #empty><div class="empty">No classes.</div></template>
       <Column field="sortOrder" header="#" sortable header-style="width: 4rem" />
       <Column field="name" header="Name" sortable>
@@ -213,7 +232,19 @@ async function upload(e: FileUploadUploaderEvent) {
       <h2 style="margin: 0; font-size: 1.1rem">Categories</h2>
       <Button v-if="isAdmin" label="New category" icon="pi pi-plus" size="small" @click="openCategory(null)" />
     </div>
-    <DataTable :value="lookups.categories" size="small" data-key="id" sort-field="sortOrder" :sort-order="1">
+    <div v-if="mobile" class="list">
+      <div v-if="!sortedCategories.length" class="empty">No categories.</div>
+      <div v-for="c in sortedCategories" :key="c.id" class="list-item" :class="{ inactive: !c.isActive }">
+        <span class="dot" :style="{ background: categoryColor(c) }" />
+        <span class="grow col" style="min-width: 0">
+          <span class="truncate">{{ c.name }}<span v-if="!c.isActive" class="muted small"> · inactive</span></span>
+          <span class="muted small truncate">{{ c.code }} · {{ c.categoryClassId === null ? 'No class' : (lookups.classById.get(c.categoryClassId)?.name ?? '?') }}</span>
+        </span>
+        <Tag :value="c.kind" :severity="kindSeverity(c.kind)" />
+        <Button v-if="isAdmin" icon="pi pi-pencil" text rounded aria-label="Edit category" @click="openCategory(c)" />
+      </div>
+    </div>
+    <DataTable v-else :value="lookups.categories" size="small" data-key="id" sort-field="sortOrder" :sort-order="1">
       <template #empty><div class="empty">No categories.</div></template>
       <Column field="sortOrder" header="#" sortable header-style="width: 4rem" />
       <Column field="code" header="Code" sortable />
@@ -245,7 +276,19 @@ async function upload(e: FileUploadUploaderEvent) {
       <h2 style="margin: 0; font-size: 1.1rem">Groups</h2>
       <Button label="New group" icon="pi pi-plus" size="small" @click="openGroup(null)" />
     </div>
-    <DataTable :value="lookups.groups" size="small" data-key="id">
+    <div v-if="mobile" class="list">
+      <div v-if="!lookups.groups.length" class="empty">No groups.</div>
+      <div v-for="g in lookups.groups" :key="g.id" class="list-item">
+        <span class="dot" :style="{ background: g.color ?? 'var(--p-surface-400)' }" />
+        <span class="grow col" style="min-width: 0">
+          <span class="truncate">{{ g.name }}</span>
+          <span class="muted small">{{ g.transactionCount }} transactions</span>
+        </span>
+        <Button icon="pi pi-pencil" text rounded aria-label="Edit group" @click="openGroup(g)" />
+        <Button icon="pi pi-trash" text rounded severity="danger" aria-label="Delete group" @click="removeGroup(g)" />
+      </div>
+    </div>
+    <DataTable v-else :value="lookups.groups" size="small" data-key="id">
       <template #empty><div class="empty">No groups.</div></template>
       <Column field="name" header="Name" sortable>
         <template #body="{ data: g }"><span class="dot" :style="{ background: g.color ?? 'var(--p-surface-400)' }" />{{ g.name }}</template>
@@ -321,3 +364,8 @@ async function upload(e: FileUploadUploaderEvent) {
 
   <GroupDialog v-model:visible="groupDialog" :group="editingGroup" />
 </template>
+
+<style scoped>
+.list { border-top: 1px solid var(--p-content-border-color); }
+.inactive .dot { opacity: .4; }
+</style>
