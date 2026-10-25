@@ -69,6 +69,10 @@ See `docs/architecture.md` for the layout and `docs/api-contract.md` for the HTT
 
 Register the redirect URL `{App:PublicOrigin}/api/banks/callback` in the Enable Banking control panel (locally `https://localhost:8080/api/banks/callback`). A new bank also has to be linked to your Enable Banking profile there, otherwise the session authorizes but exposes zero accounts.
 
+## Edenred
+
+myEdenred only logs in through a browser, so the server cannot fetch it. **Banks → Edenred** shows a bookmarklet: drag it to the bookmarks bar, log in on myedenred.be, click it, open any myEdenred page, then click *Send to BankSync*. It reuses the myEdenred tab's own API headers to fetch the operations and posts them to the BankSync tab, which imports them. The token stays in that tab. The same page also accepts the JSON pasted by hand. The scheduled sync does not touch Edenred.
+
 ## Run as a Windows service
 
 ```powershell

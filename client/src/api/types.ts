@@ -296,6 +296,11 @@ export interface BankConnectionDto {
   accounts: AccountDto[]
   pendingAuthorization: PendingAuthorization | null
 }
+export interface EdenredImportResult {
+  fetched: number
+  new: number
+  classified: number
+}
 export interface BankConnectionBody {
   bankName: string
   country: string

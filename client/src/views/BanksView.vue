@@ -139,7 +139,10 @@ function expiry(c: BankConnectionDto): { text: string; warn: boolean } | null {
 <template>
   <div class="flex center between mb-3">
     <h1 class="page-title" style="margin: 0">Banks</h1>
-    <Button label="Add bank" icon="pi pi-plus" @click="openDialog(null)" />
+    <div class="flex gap-2">
+      <Button label="Edenred" icon="pi pi-ticket" severity="secondary" outlined @click="router.push({ name: 'edenred' })" />
+      <Button label="Add bank" icon="pi pi-plus" @click="openDialog(null)" />
+    </div>
   </div>
 
   <div v-if="loading" class="cards"><Skeleton v-for="i in 2" :key="i" height="12rem" /></div>
@@ -171,7 +174,11 @@ function expiry(c: BankConnectionDto): { text: string; warn: boolean } | null {
       </div>
       <div v-else class="muted small">No accounts yet.</div>
 
-      <div class="flex wrap gap-2 mt-3 actions">
+      <div v-if="c.provider === 'Edenred'" class="flex wrap gap-2 mt-3 actions">
+        <Button label="Import" icon="pi pi-upload" size="small" @click="router.push({ name: 'edenred' })" />
+        <Button label="Delete" icon="pi pi-trash" size="small" severity="danger" outlined @click="remove(c)" />
+      </div>
+      <div v-else class="flex wrap gap-2 mt-3 actions">
         <Button :label="c.status === 'Active' ? 'Re-authorize' : 'Authorize'" icon="pi pi-lock-open" size="small"
           :loading="busy === c.id" @click="authorize(c)" />
         <Button label="Refresh" icon="pi pi-refresh" size="small" severity="secondary" :loading="busy === c.id" @click="refresh(c)" />
