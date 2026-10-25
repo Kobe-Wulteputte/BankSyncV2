@@ -47,7 +47,7 @@ Every list/analytics endpoint accepts these. Omitted = not applied.
 ## Transactions
 
 `GET /api/transactions?<common filter>&unclassifiedOnly=bool&page=1&pageSize=50&sort=date|amount|counterpartyName|category&dir=asc|desc`
-→ `{ items: TransactionDto[], total, page, pageSize, sumAmount }`
+→ `{ items: TransactionDto[], total, page, pageSize, sumAmount }`. `unclassifiedOnly` returns rows without a category plus unconfirmed AI rows (`classificationSource = Ai`).
 
 ```
 TransactionDto = {
@@ -62,6 +62,7 @@ TransactionDto = {
 
 `GET /api/transactions/{id}` → `TransactionDto`
 `PATCH /api/transactions/{id}` body (all optional) `{ categoryId: int|null, reimbursed, notes: string|null, groupIds: guid[] }` → `TransactionDto`. Absent key = unchanged; `categoryId: null` clears the category (source `None`); `notes: null` clears notes. Setting `categoryId` marks `classificationSource = Manual`. `groupIds` replaces the set.
+`POST /api/transactions/{id}/confirm` → `TransactionDto`. Confirms an AI category by switching `classificationSource` from `Ai` to `Manual`; no-op for other sources. `Ai` therefore means "AI classified, not yet confirmed".
 `POST /api/transactions/bulk` body `{ ids: guid[], categoryId?: int|null, reimbursed?: bool, addGroupIds?: guid[], removeGroupIds?: guid[] }` → `{ updated: int }`
 `GET /api/transactions/{id}/classifications` → `ClassificationRunDto[]` newest first
 `POST /api/transactions/{id}/classify` → `ClassificationRunDto` (classifies now: model `history` when earlier transactions with the same counterparty agree and no group is in play, else the configured chat model with similar earlier transactions as examples; applies category only if accepted AND transaction not manually classified; `force=true` query overrides manual)

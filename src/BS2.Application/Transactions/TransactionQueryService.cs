@@ -19,7 +19,8 @@ public sealed class TransactionQueryService(IAppDbContext db, ICurrentUser user)
         var desc = dir is null ? sort == "date" : string.Equals(dir, "desc", StringComparison.OrdinalIgnoreCase);
 
         var q = TransactionFilter.Apply(db.Transactions, filter, user.UserId);
-        if (unclassifiedOnly) q = q.Where(t => t.CategoryId == null);
+        // Unconfirmed AI labels still need a look, so they count as unclassified here.
+        if (unclassifiedOnly) q = q.Where(t => t.CategoryId == null || t.ClassificationSource == ClassificationSource.Ai);
 
         // Counterparty is ciphertext, so searching or sorting on it means pulling the SQL-filtered set into memory.
         if (filter.HasSearch || sort == "counterpartyname")

@@ -51,6 +51,20 @@ public sealed class TransactionCommandService(
         return await queries.GetAsync(id, ct);
     }
 
+    /// <summary>Accepts the AI category as if the user had picked it; other sources are already confirmed.</summary>
+    public async Task<TransactionDto> ConfirmAsync(Guid id, CancellationToken ct = default)
+    {
+        var tx = await db.Transactions.FirstOrDefaultAsync(t => t.Id == id && t.UserId == user.UserId, ct)
+                 ?? throw new NotFoundException($"Transaction {id} not found.");
+        if (tx.ClassificationSource == ClassificationSource.Ai)
+        {
+            tx.ClassificationSource = ClassificationSource.Manual;
+            tx.UpdatedAt = clock.UtcNow;
+            await db.SaveChangesAsync(ct);
+        }
+        return await queries.GetAsync(id, ct);
+    }
+
     public async Task<TransactionDto> CreateAsync(TransactionInput input, CancellationToken ct = default)
     {
         var now = clock.UtcNow;

@@ -15,7 +15,8 @@ export const listTransactions = (query: TransactionQuery) =>
 export const getTransaction = (id: Guid) => api<TransactionDto>(`/transactions/${id}`)
 export const patchTransaction = (id: Guid, body: PatchTransactionBody) =>
   api<TransactionDto>(`/transactions/${id}`, { method: 'PATCH', body })
-export const createTransaction = (body: TransactionInputBody) =>
+export const confirmTransaction = (id: Guid) => api<TransactionDto>(`/transactions/${id}/confirm`, { method: 'POST' })
+export const createTransaction =(body: TransactionInputBody) =>
   api<TransactionDto>('/transactions', { method: 'POST', body })
 export const updateTransaction = (id: Guid, body: TransactionInputBody) =>
   api<TransactionDto>(`/transactions/${id}`, { method: 'PUT', body })

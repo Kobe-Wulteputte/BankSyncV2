@@ -64,6 +64,9 @@ public static class TransactionEndpoints
             return Results.Ok(new { updated });
         });
 
+        group.MapPost("/{id:guid}/confirm", async (Guid id, TransactionCommandService commands, CancellationToken ct) =>
+            Results.Ok(await commands.ConfirmAsync(id, ct)));
+
         group.MapGet("/{id:guid}/classifications", async (Guid id, TransactionCommandService commands, CancellationToken ct) =>
             Results.Ok(await commands.GetClassificationsAsync(id, ct)));
 
