@@ -13,6 +13,7 @@ export const router = createRouter({
     { path: '/cashflow', name: 'cashflow', component: () => import('@/views/CashFlowView.vue') },
     { path: '/transactions', name: 'transactions', component: () => import('@/views/TransactionsView.vue') },
     { path: '/banks', name: 'banks', component: () => import('@/views/BanksView.vue') },
+    { path: '/edenred', name: 'edenred', component: () => import('@/views/EdenredView.vue') },
     { path: '/settings', name: 'settings', component: () => import('@/views/SettingsView.vue') },
   ],
 })

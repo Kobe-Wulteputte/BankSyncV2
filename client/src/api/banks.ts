@@ -1,5 +1,13 @@
 import { api } from './client'
-import type { AspspDto, AuthorizeResult, BankConnectionBody, BankConnectionDto, CompleteAuthorizationResult, Guid } from './types'
+import type {
+  AspspDto,
+  AuthorizeResult,
+  BankConnectionBody,
+  BankConnectionDto,
+  CompleteAuthorizationResult,
+  EdenredImportResult,
+  Guid,
+} from './types'
 
 export const listAspsps = (country: string) => api<AspspDto[]>('/banks/aspsps', { query: { country } })
 export const listConnections = () => api<BankConnectionDto[]>('/banks/connections')
@@ -14,3 +22,6 @@ export const refreshConnection = (id: Guid) =>
   api<BankConnectionDto>(`/banks/connections/${id}/refresh`, { method: 'POST' })
 export const completeAuthorization = (code: string, state: string) =>
   api<CompleteAuthorizationResult>('/banks/callback', { method: 'POST', body: { code, state } })
+/** `operations` is the raw myEdenred operations response (`{ data: [...] }`). */
+export const importEdenred = (operations: unknown) =>
+  api<EdenredImportResult>('/banks/edenred/import', { method: 'POST', body: operations })

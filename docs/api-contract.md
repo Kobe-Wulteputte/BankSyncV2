@@ -108,6 +108,7 @@ BankConnectionDto = {
 `POST /api/banks/connections/{id}/refresh` → `BankConnectionDto` — re-reads session from provider, updates status/validUntil/accounts.
 `GET /api/banks/callback?code&state&error` — **anonymous**. Completes nothing: 302-redirects to `{clientOrigin}/banks?bankCode=<code>&bankState=<state>`, or on a bank error to `{clientOrigin}/banks?result=error&message=<fixed text>`. The params are not named `code`/`state` because the Auth0 SDK claims those as its own callback.
 `POST /api/banks/callback` body `{ code, state }` → `{ success, bank, message }` — completes the authorization only if the signed-in user started it; otherwise it answers like an unknown state.
+`POST /api/banks/edenred/import` body = the raw myEdenred `accounts/accountRef/operations` response `{ data: [...] }` → `{ fetched, new, classified }`. Stores the operations on the user's single `Edenred` account (connection `provider: "Edenred"`, created on first import; an Excel-imported `Edenred` account is moved onto it). `externalId = EDENRED-<operation_ref>`, deduped per user. Operations whose `status` is not `success` are skipped. Sent by the `/edenred` page, which receives it from the bookmarklet.
 
 ## Sync
 

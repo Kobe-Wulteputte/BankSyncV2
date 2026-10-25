@@ -1,3 +1,4 @@
+using System.Text.Json;
 using BS2.Application;
 using BS2.Application.Banking;
 using Microsoft.AspNetCore.Authorization;
@@ -79,6 +80,10 @@ public static class BankEndpoints
             var outcome = await service.CompleteAuthorizationAsync(request.Code, request.State, ct);
             return Results.Ok(new { outcome.Success, bank = outcome.BankName, outcome.Message });
         });
+
+        // Body is the raw myEdenred operations response, forwarded by the bookmarklet via the /edenred page.
+        group.MapPost("/edenred/import", async (JsonElement body, EdenredImportService service, CancellationToken ct) =>
+            Results.Ok(await service.ImportAsync(body, ct)));
 
         return api;
     }

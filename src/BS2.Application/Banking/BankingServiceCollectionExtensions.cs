@@ -10,6 +10,7 @@ public static class BankingServiceCollectionExtensions
         services.AddScoped<AuthorizationFlowService>();
         services.AddScoped<BankConnectionService>();
         services.AddScoped<AccountService>();
+        services.AddScoped<EdenredImportService>();
         return services;
     }
 }
