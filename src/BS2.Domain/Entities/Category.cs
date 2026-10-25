@@ -3,8 +3,8 @@ using BS2.Domain.Enums;
 namespace BS2.Domain.Entities;
 
 /// <summary>
-/// Categories are global, not per user: the fine-tuned model was trained on these exact codes.
-/// <see cref="Code"/> is what the model emits/was prompted with ("FoodAndDrink");
+/// Categories are global, not per user. The classifier is prompted with and answers in these codes.
+/// <see cref="Code"/> is what the model emits ("FoodAndDrink");
 /// <see cref="Name"/> is the display label ("Food and drink (other)").
 /// </summary>
 public class Category

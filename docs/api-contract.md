@@ -56,7 +56,7 @@ TransactionDto = {
   counterpartyName, counterpartyIban, description, notes,
   categoryId, classificationSource: "None"|"Ai"|"Manual"|"Import", classifiedAt,
   reimbursed, groupIds: guid[],
-  latestClassification: { predictedCategoryId, confidence, accepted, createdAt } | null
+  latestClassification: { predictedCategoryId, confidence, accepted, createdAt, suggestedGroupId } | null
 }
 ```
 
@@ -64,16 +64,18 @@ TransactionDto = {
 `PATCH /api/transactions/{id}` body (all optional) `{ categoryId: int|null, reimbursed, notes: string|null, groupIds: guid[] }` → `TransactionDto`. Absent key = unchanged; `categoryId: null` clears the category (source `None`); `notes: null` clears notes. Setting `categoryId` marks `classificationSource = Manual`. `groupIds` replaces the set.
 `POST /api/transactions/bulk` body `{ ids: guid[], categoryId?: int|null, reimbursed?: bool, addGroupIds?: guid[], removeGroupIds?: guid[] }` → `{ updated: int }`
 `GET /api/transactions/{id}/classifications` → `ClassificationRunDto[]` newest first
-`POST /api/transactions/{id}/classify` → `ClassificationRunDto` (calls the model now; applies category only if accepted AND transaction not manually classified; `force=true` query overrides manual)
+`POST /api/transactions/{id}/classify` → `ClassificationRunDto` (classifies now: model `history` when earlier transactions with the same counterparty agree and no group is in play, else the configured chat model with similar earlier transactions as examples; applies category only if accepted AND transaction not manually classified; `force=true` query overrides manual)
 
 ```
 ClassificationRunDto = {
   id, trigger: "Sync"|"Manual"|"Import"|"Backfill", model, createdAt,
   predictedCategoryId, predictedCategoryCode, confidence, threshold, accepted,
   alternatives: [{ code, logprob, probability }], promptTokens, completionTokens, latencyMs, error,
-  systemPrompt, userPrompt, rawResponse
+  systemPrompt, userPrompt, rawResponse,
+  suggestedGroupId   // group the model thinks fits; never applied automatically
 }
 ```
+`confidence` is the model's own estimate (0..1), or for `history` runs the share of agreeing earlier transactions. `logprob` = ln(probability).
 
 ## Analytics
 

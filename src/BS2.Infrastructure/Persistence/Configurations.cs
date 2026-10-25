@@ -144,6 +144,7 @@ public sealed class ClassificationRunConfiguration : IEntityTypeConfiguration<Cl
         b.Property(x => x.Trigger).HasConversion<string>().HasMaxLength(16);
         b.HasOne(x => x.Transaction).WithMany(t => t.ClassificationRuns).HasForeignKey(x => x.TransactionId).OnDelete(DeleteBehavior.Cascade);
         b.HasOne(x => x.PredictedCategory).WithMany().HasForeignKey(x => x.PredictedCategoryId).OnDelete(DeleteBehavior.SetNull);
+        b.HasOne(x => x.SuggestedGroup).WithMany().HasForeignKey(x => x.SuggestedGroupId).OnDelete(DeleteBehavior.SetNull);
         b.HasIndex(x => new { x.TransactionId, x.CreatedAt });
     }
 }

@@ -28,6 +28,13 @@ v2/
 `AesGcmFieldEncryptor`: AES-256-GCM, random nonce per value, format `enc:v1:<base64>`. Key from `Encryption:MasterKey` (base64, 32 bytes). `Hash` = HMAC-SHA256 under an HKDF-derived subkey.
 Plain columns: amount, currency, dates, category, reimbursed, external ids, bank names. Encrypted: counterparty, description, raw payloads, IBANs, session/account ids, prompts, URLs.
 
+## Classification
+
+`TransactionClassificationService` loads the user's classified transactions and groups into memory once per scope (fields are encrypted, so no SQL matching). `TransactionHistory` then:
+1. skips the model when at least 2 earlier transactions with the same IBAN or counterparty name agree (90%+) and no group is in play;
+2. otherwise picks the 15 most similar earlier transactions (same IBAN, then shared words weighted by IDF) as examples, plus candidate groups (a member within 30 days, or the same counterparty).
+`OpenAiTransactionClassifier` asks the chat model for strict JSON (category enum, confidence, alternatives, group number). Group suggestions are stored on the run and shown in the UI; never applied automatically.
+
 ## Income / expense rules
 
 `TransactionRules.IsExpense`: amount < 0 and category kind != Transfer. `IsIncome`: amount > 0 and kind != Transfer. Uncategorized rows count by sign. Reimbursed rows are included unless the filter excludes them.

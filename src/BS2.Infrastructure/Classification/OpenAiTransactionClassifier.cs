@@ -1,17 +1,21 @@
 using System.Diagnostics;
 using Betalgo.Ranul.OpenAI.Interfaces;
+using Betalgo.Ranul.OpenAI.ObjectModels;
 using Betalgo.Ranul.OpenAI.ObjectModels.RequestModels;
+using Betalgo.Ranul.OpenAI.ObjectModels.SharedModels;
 using BS2.Application;
 using BS2.Application.Abstractions;
 using BS2.Application.Classification;
-using BS2.Application.Common;
 using BS2.Domain.Entities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace BS2.Infrastructure.Classification;
 
-/// <summary>V1's fine-tuned chat completion call, plus top-logprobs so alternatives can be stored.</summary>
+/// <summary>
+/// General chat model with similar earlier transactions as examples. A strict JSON schema limits the answer
+/// to known category codes; the confidence is the model's own estimate, since newer models do not return logprobs.
+/// </summary>
 public sealed class OpenAiTransactionClassifier : ITransactionClassifier
 {
     private readonly IOpenAIService _openAi;
@@ -25,12 +29,12 @@ public sealed class OpenAiTransactionClassifier : ITransactionClassifier
         _logger = logger;
     }
 
-    public async Task<ClassificationResult> ClassifyAsync(Transaction transaction, IReadOnlyList<Category> categories, CancellationToken ct)
+    public async Task<ClassificationResult> ClassifyAsync(Transaction transaction, IReadOnlyList<Category> categories, ClassificationContext context, CancellationToken ct)
     {
-        var systemPrompt = TransactionRules.BuildSystemPrompt(categories);
+        var systemPrompt = ClassificationPrompt.System(categories);
         // Callers must Include Account.BankConnection; the fallbacks only keep the prompt well-formed.
         var bankName = transaction.Account?.BankConnection?.BankName ?? transaction.Account?.DisplayName ?? "";
-        var userPrompt = TransactionRules.BuildAiPrompt(transaction, bankName);
+        var userPrompt = ClassificationPrompt.User(transaction, bankName, context);
         var sw = Stopwatch.StartNew();
 
         if (string.IsNullOrWhiteSpace(_options.Model))
@@ -42,11 +46,11 @@ public sealed class OpenAiTransactionClassifier : ITransactionClassifier
             {
                 Model = _options.Model,
                 Messages = [ChatMessage.FromSystem(systemPrompt), ChatMessage.FromUser(userPrompt)],
-                MaxTokens = 10,
-                Temperature = 0,
-                Stop = " END",
-                LogProbs = true,
-                TopLogprobs = _options.TopLogProbs
+                ResponseFormat = new ResponseFormat
+                {
+                    Type = StaticValues.CompletionStatics.ResponseFormat.JsonSchema,
+                    JsonSchema = new JsonSchema { Name = "classification", Strict = true, Schema = Schema(categories, context.Groups.Count) }
+                }
             }, cancellationToken: ct);
             sw.Stop();
 
@@ -57,23 +61,15 @@ public sealed class OpenAiTransactionClassifier : ITransactionClassifier
                 return Failed(systemPrompt, userPrompt, sw, message);
             }
 
-            var choice = response.Choices.FirstOrDefault();
-            var raw = choice?.Message?.Content;
-            var tokens = choice?.LogProbs?.Content?
-                .Select(c => new TokenLogProb(
-                    c.Token,
-                    c.LogProb,
-                    c.TopLogProbs?.Select(a => (a.Token, a.LogProb)).ToList() ?? []))
-                .ToList() ?? [];
-
-            var parsed = ClassificationResponseParser.Parse(raw, categories, tokens);
+            var raw = response.Choices.FirstOrDefault()?.Message?.Content;
+            var parsed = ClassificationResponseParser.Parse(raw, categories, context.Groups);
             return new ClassificationResult(
                 _options.Model, systemPrompt, userPrompt, raw,
                 parsed.PredictedCode, parsed.Category, parsed.Confidence, _options.Threshold,
                 ClassificationResponseParser.Decide(parsed.Confidence, _options.Threshold, parsed.Category),
                 parsed.Alternatives,
                 response.Usage?.PromptTokens, response.Usage?.CompletionTokens,
-                (int)sw.ElapsedMilliseconds, null);
+                (int)sw.ElapsedMilliseconds, null, parsed.SuggestedGroupId);
         }
         catch (Exception e)
         {
@@ -81,6 +77,28 @@ public sealed class OpenAiTransactionClassifier : ITransactionClassifier
             _logger.LogError(e, "Classification threw for transaction {TransactionId}", transaction.Id);
             return Failed(systemPrompt, userPrompt, sw, e.Message);
         }
+    }
+
+    /// <summary>Strict mode: every property required, no extras. <c>group</c> only exists when there are candidates.</summary>
+    private static PropertyDefinition Schema(IReadOnlyList<Category> categories, int groupCount)
+    {
+        var codes = categories.Select(c => c.Code).ToList();
+        var properties = new Dictionary<string, PropertyDefinition>
+        {
+            ["category"] = PropertyDefinition.DefineEnum(codes),
+            ["confidence"] = PropertyDefinition.DefineNumber("Probability between 0 and 1 that the category is right"),
+            ["alternatives"] = PropertyDefinition.DefineArray(PropertyDefinition.DefineObject(
+                new Dictionary<string, PropertyDefinition>
+                {
+                    ["category"] = PropertyDefinition.DefineEnum(codes),
+                    ["confidence"] = PropertyDefinition.DefineNumber()
+                },
+                ["category", "confidence"], false, null, null))
+        };
+        if (groupCount > 0)
+            properties["group"] = PropertyDefinition.DefineEnum(Enumerable.Range(0, groupCount + 1).Select(i => i.ToString()).ToList(), "Group number, 0 for none");
+
+        return PropertyDefinition.DefineObject(properties, properties.Keys.ToList(), false, null, null);
     }
 
     private ClassificationResult Failed(string systemPrompt, string userPrompt, Stopwatch sw, string error) =>

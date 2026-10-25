@@ -746,6 +746,10 @@ namespace BS2.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("raw_response");
 
+                    b.Property<Guid?>("SuggestedGroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("suggested_group_id");
+
                     b.Property<string>("SystemPrompt")
                         .IsRequired()
                         .HasColumnType("text")
@@ -775,6 +779,9 @@ namespace BS2.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("PredictedCategoryId")
                         .HasDatabaseName("ix_classification_runs_predicted_category_id");
+
+                    b.HasIndex("SuggestedGroupId")
+                        .HasDatabaseName("ix_classification_runs_suggested_group_id");
 
                     b.HasIndex("TransactionId", "CreatedAt")
                         .HasDatabaseName("ix_classification_runs_transaction_id_created_at");
@@ -1152,6 +1159,12 @@ namespace BS2.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_classification_runs_categories_predicted_category_id");
 
+                    b.HasOne("BS2.Domain.Entities.Group", "SuggestedGroup")
+                        .WithMany()
+                        .HasForeignKey("SuggestedGroupId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_classification_runs_groups_suggested_group_id");
+
                     b.HasOne("BS2.Domain.Entities.Transaction", "Transaction")
                         .WithMany("ClassificationRuns")
                         .HasForeignKey("TransactionId")
@@ -1160,6 +1173,8 @@ namespace BS2.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_classification_runs_transactions_transaction_id");
 
                     b.Navigation("PredictedCategory");
+
+                    b.Navigation("SuggestedGroup");
 
                     b.Navigation("Transaction");
                 });

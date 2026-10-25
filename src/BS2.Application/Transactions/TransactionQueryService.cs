@@ -92,7 +92,7 @@ public sealed class TransactionQueryService(IAppDbContext db, ICurrentUser user)
         GroupIds = t.Groups.Select(g => g.GroupId).ToList(),
         LatestClassification = t.ClassificationRuns
             .OrderByDescending(r => r.CreatedAt)
-            .Select(r => new LatestClassificationDto(r.PredictedCategoryId, r.Confidence, r.Accepted, r.CreatedAt))
+            .Select(r => new LatestClassificationDto(r.PredictedCategoryId, r.Confidence, r.Accepted, r.CreatedAt, r.SuggestedGroupId))
             .FirstOrDefault()
     });
 

@@ -163,6 +163,12 @@ function tapCard(t: TransactionDto) {
 }
 const groupName = (id: string) => lookups.groupById.get(id)?.name ?? '?'
 const groupColor = (id: string) => lookups.groupById.get(id)?.color ?? 'var(--p-surface-400)'
+/** The model's group suggestion, unless the transaction already has it or the group is gone. */
+function suggestedGroup(t: TransactionDto) {
+  const id = t.latestClassification?.suggestedGroupId
+  return id && !t.groupIds.includes(id) && lookups.groupById.has(id) ? id : null
+}
+const addSuggestedGroup = (t: TransactionDto) => patch(t.id, { groupIds: [...t.groupIds, suggestedGroup(t)!] })
 
 const groupDialog = ref(false)
 
@@ -233,6 +239,8 @@ const sourceBadge = (t: TransactionDto) =>
           <Tag v-if="t.latestClassification" :value="formatPercent(t.latestClassification.confidence)"
             :severity="t.latestClassification.accepted ? 'success' : 'warn'" />
           <Tag v-for="g in t.groupIds" :key="g" severity="secondary"><span class="dot" :style="{ background: groupColor(g) }" />{{ groupName(g) }}</Tag>
+          <Tag v-if="suggestedGroup(t)" severity="info" icon="pi pi-plus" :value="`${groupName(suggestedGroup(t)!)}?`" style="cursor: pointer"
+            @click.stop="addSuggestedGroup(t)" />
           <Tag v-if="t.reimbursed" severity="secondary" icon="pi pi-replay" value="Reimbursed" />
         </div>
         <div v-if="isExpanded(t) && !selecting" class="tx-details col gap-3">
@@ -371,9 +379,13 @@ const sourceBadge = (t: TransactionDto) =>
       </Column>
       <Column header="Groups" header-style="min-width: 12rem">
         <template #body="{ data: t }">
-          <MultiSelect :model-value="t.groupIds" :options="lookups.groups" option-label="name" option-value="id"
-            display="chip" placeholder="—" size="small" style="width: 11rem" :max-selected-labels="2"
-            @update:model-value="patch(t.id, { groupIds: $event })" />
+          <div class="flex center gap-1">
+            <MultiSelect :model-value="t.groupIds" :options="lookups.groups" option-label="name" option-value="id"
+              display="chip" placeholder="—" size="small" style="width: 11rem" :max-selected-labels="2"
+              @update:model-value="patch(t.id, { groupIds: $event })" />
+            <Tag v-if="suggestedGroup(t)" severity="info" icon="pi pi-plus" :value="`${groupName(suggestedGroup(t)!)}?`" style="cursor: pointer"
+              v-tooltip.top="'Suggested group: click to add'" @click="addSuggestedGroup(t)" />
+          </div>
         </template>
       </Column>
       <Column header="Reimb." header-style="width: 5rem" body-class="center">

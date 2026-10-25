@@ -28,7 +28,7 @@ See `docs/architecture.md` for the layout and `docs/api-contract.md` for the HTT
    dotnet user-secrets set "EnableBanking:AppKid" "<kid>"
    dotnet user-secrets set "EnableBanking:KeyPath" "C:/path/to/enablebanking.pem"
    dotnet user-secrets set "OpenAIServiceOptions:ApiKey" "sk-..."
-   dotnet user-secrets set "Classification:Model" "ft:gpt-4.1-nano-2025-04-14:personal:banksync:..."
+   dotnet user-secrets set "Classification:Model" "gpt-5.4-nano"
    dotnet user-secrets set "Sync:NotifyEmail" "you@example.com"
    dotnet user-secrets set "Mail:SmtpHost" "smtp.gmail.com"      # optional, enables expiry mails
    dotnet user-secrets set "Mail:SmtpUser" "..."
