@@ -185,7 +185,7 @@ public sealed class TransactionCommandService(
         r.PredictedCategoryId, r.PredictedCategoryCode, r.Confidence, r.Threshold, r.Accepted,
         ParseAlternatives(r.AlternativesJson),
         r.PromptTokens, r.CompletionTokens, r.LatencyMs, r.Error,
-        r.SystemPrompt, r.UserPrompt, r.RawResponse);
+        r.SystemPrompt, r.UserPrompt, r.RawResponse, r.SuggestedGroupId);
 
     private static ClassificationAlternativeDto[] ParseAlternatives(string? json)
     {

@@ -32,14 +32,21 @@ public class ClassificationRun
     public int? PredictedCategoryId { get; set; }
     public Category? PredictedCategory { get; set; }
 
-    /// <summary>Probability of the emitted sequence (exp of summed token logprobs), 0..1.</summary>
+    /// <summary>
+    /// 0..1. The model's own estimate; for <c>history</c> runs the share of agreeing earlier transactions.
+    /// Runs from the old fine-tuned model hold the sequence probability (exp of summed token logprobs).
+    /// </summary>
     public double? Confidence { get; set; }
 
     public double Threshold { get; set; }
     public bool Accepted { get; set; }
 
-    /// <summary>Top alternatives for the first token, as JSON: [{"code":..,"logprob":..,"probability":..}].</summary>
+    /// <summary>Alternative categories, as JSON: [{"code":..,"logprob":..,"probability":..}].</summary>
     public string? AlternativesJson { get; set; }
+
+    /// <summary>Group the model thinks the transaction belongs to. Only a suggestion: never applied automatically.</summary>
+    public Guid? SuggestedGroupId { get; set; }
+    public Group? SuggestedGroup { get; set; }
 
     public int? PromptTokens { get; set; }
     public int? CompletionTokens { get; set; }

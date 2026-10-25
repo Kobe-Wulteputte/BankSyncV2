@@ -34,6 +34,7 @@ async function reclassify() {
 }
 
 const categoryName = (id: number | null) => (id === null ? '—' : (lookups.categoryById.get(id)?.name ?? `#${id}`))
+const groupName = (id: string | null) => (id === null ? '' : (lookups.groupById.get(id)?.name ?? 'deleted group'))
 </script>
 
 <template>
@@ -61,6 +62,7 @@ const categoryName = (id: number | null) => (id === null ? '—' : (lookups.cate
         <div v-if="r.alternatives.length" class="flex wrap gap-1">
           <Tag v-for="alt in r.alternatives" :key="alt.code" severity="secondary" :value="`${alt.code} ${formatPercent(alt.probability)}`" />
         </div>
+        <span v-if="r.suggestedGroupId" class="muted">Suggested group: {{ groupName(r.suggestedGroupId) }}</span>
         <span v-if="r.error" class="neg">{{ r.error }}</span>
       </div>
     </div>
@@ -92,6 +94,7 @@ const categoryName = (id: number | null) => (id === null ? '—' : (lookups.cate
           </div>
         </template>
       </Column>
+      <Column header="Group"><template #body="{ data }">{{ groupName(data.suggestedGroupId) }}</template></Column>
       <Column header="Latency"><template #body="{ data }">{{ data.latencyMs }} ms</template></Column>
       <Column header="Error"><template #body="{ data }"><span class="neg small">{{ data.error }}</span></template></Column>
     </DataTable>

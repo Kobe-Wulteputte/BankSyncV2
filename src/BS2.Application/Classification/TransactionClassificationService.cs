@@ -1,6 +1,5 @@
 using System.Text.Json;
 using BS2.Application.Abstractions;
-using BS2.Domain;
 using BS2.Domain.Entities;
 using BS2.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -9,15 +8,25 @@ namespace BS2.Application.Classification;
 
 public sealed class TransactionClassificationService(IAppDbContext db, ITransactionClassifier classifier, IClock clock) : ITransactionClassificationService
 {
+    public const string HistoryModel = "history";
     private const int MaxErrorLength = 2000; // matches the column length
+    private const int ExampleCount = 15;
 
     private IReadOnlyList<Category>? _categories;
+    private readonly Dictionary<Guid, TransactionHistory> _history = [];
 
     public async Task<ClassificationRun> ClassifyAsync(Transaction transaction, ClassificationTrigger trigger, bool force, CancellationToken ct)
     {
-        _categories ??= await LoadCategoriesAsync(ct);
+        _categories ??= await db.Categories.Where(c => c.IsActive).OrderBy(c => c.SortOrder).ToListAsync(ct);
+        var history = await HistoryAsync(transaction.UserId, ct);
 
-        var result = await classifier.ClassifyAsync(transaction, _categories, ct);
+        // Skip the model only when it has nothing to add: with candidate groups it still has to pick one.
+        var groups = history.CandidateGroups(transaction);
+        var match = groups.Count == 0 ? history.Match(transaction) : null;
+        var result = match is not null
+            ? FromHistory(match)
+            : await classifier.ClassifyAsync(transaction, _categories,
+                new ClassificationContext(history.Similar(transaction, ExampleCount), groups), ct);
         var now = clock.UtcNow;
 
         var run = new ClassificationRun
@@ -37,6 +46,7 @@ public sealed class TransactionClassificationService(IAppDbContext db, ITransact
             AlternativesJson = result.Alternatives.Count == 0
                 ? null
                 : JsonSerializer.Serialize(result.Alternatives.Select(a => new { code = a.Code, logprob = a.LogProb, probability = a.Probability })),
+            SuggestedGroupId = result.SuggestedGroupId,
             PromptTokens = result.PromptTokens,
             CompletionTokens = result.CompletionTokens,
             LatencyMs = result.LatencyMs,
@@ -57,21 +67,23 @@ public sealed class TransactionClassificationService(IAppDbContext db, ITransact
         return run;
     }
 
-    /// <summary>
-    /// The fine-tuned model was trained on V1's exact category order, so the seed order wins over
-    /// DB order/active flags; categories added later are appended by SortOrder.
-    /// </summary>
-    private async Task<IReadOnlyList<Category>> LoadCategoriesAsync(CancellationToken ct)
-    {
-        var all = await db.Categories.ToListAsync(ct);
-        var byCode = all.ToDictionary(c => c.Code, StringComparer.OrdinalIgnoreCase);
-        var seedCodes = CategorySeed.Categories.Select(c => c.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    private static ClassificationResult FromHistory(HistoryMatch match) => new(
+        HistoryModel, "", $"{match.Agreeing} of {match.Total} earlier transactions with this counterparty are {match.Category.Code}.",
+        match.Category.Code, match.Category.Code, match.Category, match.Share, TransactionHistory.MinAgreement, true, [],
+        null, null, 0, null);
 
-        var ordered = CategorySeed.Categories
-            .Select(s => byCode.GetValueOrDefault(s.Code))
-            .OfType<Category>()
-            .ToList();
-        ordered.AddRange(all.Where(c => c.IsActive && !seedCodes.Contains(c.Code)).OrderBy(c => c.SortOrder));
-        return ordered;
+    /// <summary>Loaded once per user per scope, so a sync batch reads the history once.</summary>
+    private async Task<TransactionHistory> HistoryAsync(Guid userId, CancellationToken ct)
+    {
+        if (_history.TryGetValue(userId, out var cached)) return cached;
+
+        var classified = await db.Transactions.AsNoTracking()
+            .Where(t => t.UserId == userId && t.CategoryId != null)
+            .ToListAsync(ct);
+        var groups = await db.Groups.AsNoTracking()
+            .Where(g => g.UserId == userId)
+            .Include(g => g.Transactions).ThenInclude(m => m.Transaction)
+            .ToListAsync(ct);
+        return _history[userId] = new TransactionHistory(classified, _categories!, groups);
     }
 }

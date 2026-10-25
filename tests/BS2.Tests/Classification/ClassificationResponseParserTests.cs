@@ -8,70 +8,65 @@ namespace BS2.Tests.Classification;
 public class ClassificationResponseParserTests
 {
     private static readonly IReadOnlyList<Category> Categories = CategorySeed.Categories;
-    private static readonly IReadOnlyList<TokenLogProb> NoTokens = [];
+    private static readonly IReadOnlyList<GroupCandidate> NoGroups = [];
 
-    [Theory]
-    [InlineData("Food and drink (other)", "FoodAndDrink")]
-    [InlineData("FoodAndDrink", "FoodAndDrink")]
-    [InlineData("[Groceries]", "Groceries")]
-    [InlineData(" Fast_Food ", "FastFood")]
-    public void Parse_resolves_cleaned_response_to_category(string raw, string expectedCode)
+    [Fact]
+    public void Parse_reads_category_confidence_and_alternatives()
     {
-        var parsed = ClassificationResponseParser.Parse(raw, Categories, NoTokens);
+        var parsed = ClassificationResponseParser.Parse(
+            """{"category":"Groceries","confidence":0.85,"alternatives":[{"category":"FoodAndDrink","confidence":0.1},{"category":"Banana","confidence":0}]}""",
+            Categories, NoGroups);
 
-        Assert.Equal(expectedCode, parsed.Category?.Code);
-        Assert.Equal(expectedCode, parsed.PredictedCode);
+        Assert.Equal("Groceries", parsed.Category?.Code);
+        Assert.Equal("Groceries", parsed.PredictedCode);
+        Assert.Equal(0.85, parsed.Confidence);
+        Assert.Equal(["FoodAndDrink", "Banana"], parsed.Alternatives.Select(a => a.Code));
+        Assert.Equal(0.1, parsed.Alternatives[0].Probability, 6);
+        Assert.Equal(Math.Log(0.1), parsed.Alternatives[0].LogProb, 6);
+        Assert.True(double.IsFinite(parsed.Alternatives[1].LogProb));
+        Assert.Null(parsed.SuggestedGroupId);
     }
 
     [Fact]
-    public void Parse_keeps_unresolvable_text_as_code_without_category()
+    public void Parse_keeps_unresolvable_code_without_category_and_clamps_confidence()
     {
-        var parsed = ClassificationResponseParser.Parse("Banana", Categories, NoTokens);
+        var parsed = ClassificationResponseParser.Parse("""{"category":"Banana","confidence":1.4,"alternatives":[]}""", Categories, NoGroups);
 
         Assert.Null(parsed.Category);
         Assert.Equal("Banana", parsed.PredictedCode);
-        Assert.Null(parsed.Confidence);
-    }
-
-    [Fact]
-    public void Parse_confidence_is_exp_of_summed_logprobs()
-    {
-        var tokens = new[]
-        {
-            new TokenLogProb("Gro", Math.Log(0.5), []),
-            new TokenLogProb("ceries", Math.Log(0.8), [])
-        };
-
-        var parsed = ClassificationResponseParser.Parse("Groceries", Categories, tokens);
-
-        Assert.Equal(0.4, parsed.Confidence!.Value, 6);
-    }
-
-    [Fact]
-    public void Parse_clamps_confidence_to_one()
-    {
-        var parsed = ClassificationResponseParser.Parse("Groceries", Categories, [new TokenLogProb("Groceries", 0.001, [])]);
-
         Assert.Equal(1.0, parsed.Confidence);
     }
 
-    [Fact]
-    public void Parse_maps_first_token_alternatives_and_keeps_unresolvable_tokens()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Groceries")]
+    [InlineData("[1,2]")]
+    public void Parse_returns_nothing_for_non_json_answers(string? raw)
     {
-        var tokens = new[]
-        {
-            new TokenLogProb("Gro", Math.Log(0.7), [("Gro", Math.Log(0.7)), ("Food", Math.Log(0.2)), ("Takeaway", Math.Log(0.1))]),
-            new TokenLogProb("ceries", 0, [("ceries", 0)])
-        };
+        var parsed = ClassificationResponseParser.Parse(raw, Categories, NoGroups);
 
-        var parsed = ClassificationResponseParser.Parse("Groceries", Categories, tokens);
+        Assert.Null(parsed.Category);
+        Assert.Null(parsed.Confidence);
+        Assert.Empty(parsed.Alternatives);
+    }
 
-        Assert.Equal(3, parsed.Alternatives.Count);
-        Assert.Equal("Gro", parsed.Alternatives[0].Code);
-        Assert.Equal("Food", parsed.Alternatives[1].Code);
-        Assert.Equal("Takeaway", parsed.Alternatives[2].Code);
-        Assert.Equal(0.2, parsed.Alternatives[1].Probability, 6);
-        Assert.Equal(Math.Log(0.2), parsed.Alternatives[1].LogProb, 6);
+    [Theory]
+    [InlineData("2", 1)]
+    [InlineData("1", 0)]
+    [InlineData("0", null)]
+    [InlineData("3", null)]
+    public void Parse_maps_group_number_to_candidate(string group, int? expectedIndex)
+    {
+        GroupCandidate[] groups =
+        [
+            new(Guid.NewGuid(), "Italy", new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 14), []),
+            new(Guid.NewGuid(), "Renovation", new DateOnly(2026, 5, 1), new DateOnly(2026, 9, 1), [])
+        ];
+
+        var parsed = ClassificationResponseParser.Parse(
+            $$"""{"category":"Groceries","confidence":0.9,"alternatives":[],"group":"{{group}}"}""", Categories, groups);
+
+        Assert.Equal(expectedIndex is { } i ? groups[i].Id : null, parsed.SuggestedGroupId);
     }
 
     [Fact]

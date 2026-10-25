@@ -43,7 +43,7 @@ services:
       # Argenta requires psu-ip-address; inside Docker the auto-detected address is the container's.
       BS2_EnableBanking__PsuIpAddress: ${PSU_IP_ADDRESS:-}
       BS2_OpenAIServiceOptions__ApiKey: ${OPENAI_API_KEY}
-      BS2_Classification__Model: ${OPENAI_MODEL}
+      BS2_Classification__Model: ${OPENAI_MODEL:-gpt-5.4-nano}
       BS2_Sync__NotifyEmail: ${NOTIFY_EMAIL}
       BS2_Mail__SmtpHost: ${SMTP_HOST}
       BS2_Mail__SmtpPort: ${SMTP_PORT:-587}

@@ -26,7 +26,7 @@ public sealed record TransactionDto(
     Guid[] GroupIds,
     LatestClassificationDto? LatestClassification);
 
-public sealed record LatestClassificationDto(int? PredictedCategoryId, double? Confidence, bool Accepted, DateTime CreatedAt);
+public sealed record LatestClassificationDto(int? PredictedCategoryId, double? Confidence, bool Accepted, DateTime CreatedAt, Guid? SuggestedGroupId);
 
 public sealed record ClassificationRunDto(
     Guid Id,
@@ -45,7 +45,8 @@ public sealed record ClassificationRunDto(
     string? Error,
     string SystemPrompt,
     string UserPrompt,
-    string? RawResponse);
+    string? RawResponse,
+    Guid? SuggestedGroupId);
 
 public sealed record ClassificationAlternativeDto(string Code, double Logprob, double Probability);
 

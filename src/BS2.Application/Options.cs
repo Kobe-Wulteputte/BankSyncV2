@@ -30,12 +30,11 @@ public sealed class ClassificationOptions
 {
     public const string Section = "Classification";
 
+    /// <summary>Any chat model that supports structured outputs (JSON schema), e.g. <c>gpt-5.4-nano</c>.</summary>
     public string Model { get; set; } = string.Empty;
 
-    /// <summary>Minimum sequence probability (0..1) for a prediction to be applied. V1 used 60%.</summary>
+    /// <summary>Minimum confidence (0..1) the model must state for a prediction to be applied.</summary>
     public double Threshold { get; set; } = 0.6;
-
-    public int TopLogProbs { get; set; } = 5;
 
     /// <summary>Classify new transactions during sync. Off saves model calls while testing.</summary>
     public bool ClassifyOnSync { get; set; } = true;

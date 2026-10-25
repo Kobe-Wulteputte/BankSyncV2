@@ -58,21 +58,44 @@ public class TransactionClassificationServiceTests
     }
 
     [Fact]
-    public async Task Passes_seed_order_regardless_of_db_order_and_appends_active_extras()
+    public async Task Uses_history_without_calling_the_model_when_earlier_transactions_agree()
     {
         await using var db = NewDb();
         var tx = await SeedAsync(db, ClassificationSource.None);
-        db.Categories.Single(c => c.Code == "Clothes").SortOrder = 999; // user reordered in the UI
-        db.Categories.Add(new Category { Id = 100, Code = "Pets", Name = "Pets", Kind = CategoryKind.Expense, SortOrder = 50, IsActive = true });
-        db.Categories.Add(new Category { Id = 101, Code = "Old", Name = "Old", Kind = CategoryKind.Expense, SortOrder = 51, IsActive = false });
-        await db.SaveChangesAsync();
-        var classifier = new FakeClassifier(Accepted(db.Categories.Single(c => c.Code == "Groceries")));
+        await AddEarlierAsync(db, tx.UserId, "Groceries", "COLRUYT 123", "Colruyt-456");
+        var classifier = new FakeClassifier(Accepted(db.Categories.Single(c => c.Code == "Gifts")));
         var service = new TransactionClassificationService(db, classifier, new FakeClock(Now));
 
-        await service.ClassifyAsync(tx, ClassificationTrigger.Sync, force: false, CancellationToken.None);
+        var run = await service.ClassifyAsync(tx, ClassificationTrigger.Sync, force: false, CancellationToken.None);
 
-        var expected = CategorySeed.Categories.Select(c => c.Code).Append("Pets");
-        Assert.Equal(expected, classifier.LastCategories!.Select(c => c.Code));
+        Assert.Equal(0, classifier.Calls);
+        Assert.Equal(TransactionClassificationService.HistoryModel, run.Model);
+        Assert.Equal(1.0, run.Confidence);
+        Assert.True(run.Accepted);
+        Assert.Equal("Groceries", db.Categories.Single(c => c.Id == tx.CategoryId).Code);
+    }
+
+    [Fact]
+    public async Task Calls_the_model_with_examples_and_groups_and_stores_suggested_group()
+    {
+        await using var db = NewDb();
+        var tx = await SeedAsync(db, ClassificationSource.None);
+        await AddEarlierAsync(db, tx.UserId, "Groceries", "Colruyt");
+        var trip = new Group { Id = Guid.NewGuid(), UserId = tx.UserId, Name = "Trip" };
+        var member = await AddEarlierAsync(db, tx.UserId, "Gifts", "Souvenir shop");
+        db.Groups.Add(trip);
+        db.TransactionGroups.Add(new TransactionGroup { GroupId = trip.Id, TransactionId = member.Id });
+        await db.SaveChangesAsync();
+        var classifier = new FakeClassifier(Accepted(db.Categories.Single(c => c.Code == "Groceries")) with { SuggestedGroupId = trip.Id });
+        var service = new TransactionClassificationService(db, classifier, new FakeClock(Now));
+
+        var run = await service.ClassifyAsync(tx, ClassificationTrigger.Sync, force: false, CancellationToken.None);
+
+        Assert.Equal(1, classifier.Calls);
+        Assert.Contains(classifier.LastContext!.Examples, e => e.Transaction.CounterpartyName == "Colruyt");
+        Assert.Equal(trip.Id, Assert.Single(classifier.LastContext.Groups).Id);
+        Assert.DoesNotContain(classifier.LastCategories!, c => c.Code == "Chiro");
+        Assert.Equal(trip.Id, run.SuggestedGroupId);
     }
 
     [Fact]
@@ -122,6 +145,23 @@ public class TransactionClassificationServiceTests
         [new ClassificationAlternative(category.Code, Math.Log(0.9), 0.9), new ClassificationAlternative("Food", Math.Log(0.05), 0.05)],
         12, 3, 250, null);
 
+    private static async Task<Transaction> AddEarlierAsync(AppDbContext db, Guid userId, string categoryCode, params string[] names)
+    {
+        Transaction last = null!;
+        foreach (var name in names)
+        {
+            last = new Transaction
+            {
+                Id = Guid.NewGuid(), UserId = userId, AccountId = Guid.NewGuid(), ExternalId = Guid.NewGuid().ToString(),
+                Amount = -20m, Date = new DateOnly(2026, 9, 20), CounterpartyName = name,
+                CategoryId = db.Categories.Single(c => c.Code == categoryCode).Id, ClassificationSource = ClassificationSource.Manual
+            };
+            db.Transactions.Add(last);
+        }
+        await db.SaveChangesAsync();
+        return last;
+    }
+
     private static AppDbContext NewDb()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
@@ -156,10 +196,14 @@ public class TransactionClassificationServiceTests
 file sealed class FakeClassifier(ClassificationResult result) : ITransactionClassifier
 {
     public IReadOnlyList<Category>? LastCategories { get; private set; }
+    public ClassificationContext? LastContext { get; private set; }
+    public int Calls { get; private set; }
 
-    public Task<ClassificationResult> ClassifyAsync(Transaction transaction, IReadOnlyList<Category> categories, CancellationToken ct)
+    public Task<ClassificationResult> ClassifyAsync(Transaction transaction, IReadOnlyList<Category> categories, ClassificationContext context, CancellationToken ct)
     {
+        Calls++;
         LastCategories = categories;
+        LastContext = context;
         return Task.FromResult(result);
     }
 }

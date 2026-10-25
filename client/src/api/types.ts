@@ -114,6 +114,7 @@ export interface LatestClassification {
   confidence: number
   accepted: boolean
   createdAt: Timestamp
+  suggestedGroupId: Guid | null
 }
 
 export interface TransactionDto {
@@ -191,6 +192,7 @@ export interface ClassificationRunDto {
   systemPrompt: string | null
   userPrompt: string | null
   rawResponse: string | null
+  suggestedGroupId: Guid | null
 }
 
 export interface ExpenseCategoryRow {
