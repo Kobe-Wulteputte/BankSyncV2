@@ -8,7 +8,7 @@ public sealed class SyncOptions
     public int RetrievalDays { get; set; } = 31;
 
     /// <summary>Background sync interval. Zero disables the scheduler.</summary>
-    public TimeSpan Interval { get; set; } = TimeSpan.FromHours(24);
+    public TimeSpan Interval { get; set; } = TimeSpan.FromHours(4);
 
     /// <summary>Delay before the first scheduled sync after startup.</summary>
     public TimeSpan InitialDelay { get; set; } = TimeSpan.FromMinutes(1);
